@@ -34,6 +34,13 @@ html, body, #root {
   transition: color 0.8s ease;
 }
 
+.overlay-station {
+  margin-top: 4px;
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  opacity: 0.7;
+}
+
 .overlay-center {
   position: absolute;
   top: 50%;

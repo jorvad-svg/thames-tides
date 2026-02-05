@@ -45,6 +45,7 @@ export function Overlay({ data, theme, onToggleTheme }: OverlayProps) {
       {/* Title — top left */}
       <div className="overlay-title">
         Thames at Hays Court
+        <div className="overlay-station">Station: {stationName}</div>
       </div>
 
       {/* Theme toggle — top right */}
