@@ -3,7 +3,8 @@ import { mapRange } from '../utils/math';
 import { levelToGlowColor } from './color';
 
 const CURVE_HEIGHT_FRACTION = 0.15;
-const PADDING_X = 60;
+const PADDING_X = 0; // curve runs edge-to-edge
+const LABEL_PAD = 60; // inset for time labels and markers
 const HALF_CYCLE = 6.2 * 3600 * 1000; // ~6.2h between consecutive high/low
 
 /**
@@ -213,8 +214,9 @@ export function drawTideCurve(
       ctx.closePath();
 
       const fillGrad = ctx.createLinearGradient(0, curveTop, 0, curveBottom);
-      fillGrad.addColorStop(0, bright(0.35));
-      fillGrad.addColorStop(1, bright(0.03));
+      const fillAlpha = theme === 'light' ? 0.12 : 0.35;
+      fillGrad.addColorStop(0, bright(fillAlpha));
+      fillGrad.addColorStop(1, bright(0.01));
       ctx.fillStyle = fillGrad;
       ctx.fill();
     }
@@ -227,7 +229,7 @@ export function drawTideCurve(
     const t = e.time.getTime();
     if (t < dayStart || t > dayEnd) continue;
     const x = timeToX(t);
-    if (x < PADDING_X + 10 || x > width - PADDING_X - 10) continue;
+    if (x < LABEL_PAD || x > width - LABEL_PAD) continue;
 
     const y = levelToY(e.level);
 
@@ -289,7 +291,7 @@ export function drawTideCurve(
   const firstMark = Math.ceil(dayStart / threeHours) * threeHours;
   for (let t = firstMark; t <= dayEnd; t += threeHours) {
     const x = timeToX(t);
-    if (x < PADDING_X + 20 || x > width - PADDING_X - 20) continue;
+    if (x < LABEL_PAD || x > width - LABEL_PAD) continue;
     const d = new Date(t);
     const label = `${d.getHours().toString().padStart(2, '0')}:00`;
     ctx.fillText(label, x, curveBottom + 14);
