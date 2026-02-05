@@ -4,6 +4,12 @@ import { useCanvasSize } from '../hooks/useCanvasSize';
 import { renderFrame, renderInitialBackground } from '../engine/renderer';
 import { initParticles, resizeParticles } from '../engine/particles';
 
+const TRANSITION_MS = 800;
+
+function easeInOut(t: number): number {
+  return t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
+}
+
 interface TideCanvasProps {
   data: TideData;
   theme: Theme;
@@ -16,6 +22,29 @@ export function TideCanvas({ data, theme }: TideCanvasProps) {
   const lastFrameRef = useRef(0);
   const initializedRef = useRef(false);
   const pointerRef = useRef<PointerState>({ x: 0, y: 0, active: false });
+
+  // Theme blend animation (0 = dark, 1 = light)
+  const blendRef = useRef(theme === 'light' ? 1 : 0);
+  const blendTargetRef = useRef(blendRef.current);
+
+  useEffect(() => {
+    const target = theme === 'light' ? 1 : 0;
+    blendTargetRef.current = target;
+    const start = blendRef.current;
+    if (start === target) return;
+
+    const startTime = performance.now();
+    let rafId: number;
+
+    const step = (now: number) => {
+      const t = Math.min((now - startTime) / TRANSITION_MS, 1);
+      blendRef.current = start + (target - start) * easeInOut(t);
+      if (t < 1) rafId = requestAnimationFrame(step);
+    };
+
+    rafId = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(rafId);
+  }, [theme]);
 
   // Pointer handlers
   const handlePointerMove = useCallback((e: PointerEvent) => {
@@ -62,10 +91,10 @@ export function TideCanvas({ data, theme }: TideCanvasProps) {
     if (!ctx) return;
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    renderInitialBackground(ctx, width, height, data.currentLevel, theme);
-  }, [width, height, dpr, data.currentLevel, theme]);
+    renderInitialBackground(ctx, width, height, data.currentLevel, blendRef.current);
+  }, [width, height, dpr, data.currentLevel]);
 
-  // Animation loop
+  // Animation loop — reads blendRef each frame, no dependency on theme
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -95,6 +124,7 @@ export function TideCanvas({ data, theme }: TideCanvasProps) {
         time: animTimeRef.current,
         pointer: pointerRef.current,
         theme,
+        themeBlend: blendRef.current,
       };
 
       renderFrame(ctx, state);

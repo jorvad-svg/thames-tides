@@ -1,5 +1,4 @@
 import { clamp } from '../utils/math';
-import type { Theme } from '../types';
 
 // Color stops: level (mAOD) → [hue, saturation%, lightness%]
 const COLOR_STOPS: [number, [number, number, number]][] = [
@@ -42,35 +41,38 @@ export function levelToCSS(level: number, alpha = 1): string {
   return `hsla(${h}, ${s}%, ${l}%, ${alpha})`;
 }
 
-export function levelToBackground(level: number, theme: Theme): string {
-  const [h, s, l] = levelToHSL(level);
-  if (theme === 'light') {
-    return `hsl(${h}, ${s * 0.15}%, ${92 + l * 0.1}%)`;
-  }
-  return `hsl(${h}, ${s * 0.5}%, ${l * 0.15}%)`;
+function mix(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
 }
 
-export function levelToParticleColor(level: number, alpha: number, theme: Theme): string {
+export function levelToBackground(level: number, blend: number): string {
   const [h, s, l] = levelToHSL(level);
-  if (theme === 'light') {
-    return `hsla(${h}, ${Math.min(s + 25, 100)}%, ${clamp(l + 35, 45, 70)}%, ${alpha})`;
-  }
-  return `hsla(${h}, ${Math.min(s + 15, 100)}%, ${Math.min(l + 40, 85)}%, ${alpha})`;
+  const finalS = mix(s * 0.5, s * 0.15, blend);
+  const finalL = mix(l * 0.15, 92 + l * 0.1, blend);
+  return `hsl(${h}, ${finalS}%, ${finalL}%)`;
 }
 
-export function levelToGlowColor(level: number, alpha: number, theme: Theme): string {
+export function levelToParticleColor(level: number, alpha: number, blend: number): string {
   const [h, s, l] = levelToHSL(level);
-  if (theme === 'light') {
-    return `hsla(${h}, ${Math.min(s + 20, 100)}%, ${clamp(l + 30, 40, 65)}%, ${alpha})`;
-  }
-  return `hsla(${h}, ${s + 10}%, ${Math.min(l + 30, 85)}%, ${alpha})`;
+  const darkS = Math.min(s + 15, 100);
+  const darkL = Math.min(l + 40, 85);
+  const lightS = Math.min(s + 25, 100);
+  const lightL = clamp(l + 35, 45, 70);
+  return `hsla(${h}, ${mix(darkS, lightS, blend)}%, ${mix(darkL, lightL, blend)}%, ${alpha})`;
+}
+
+export function levelToGlowColor(level: number, alpha: number, blend: number): string {
+  const [h, s, l] = levelToHSL(level);
+  const darkS = s + 10;
+  const darkL = Math.min(l + 30, 85);
+  const lightS = Math.min(s + 20, 100);
+  const lightL = clamp(l + 30, 40, 65);
+  return `hsla(${h}, ${mix(darkS, lightS, blend)}%, ${mix(darkL, lightL, blend)}%, ${alpha})`;
 }
 
 /** Returns true when overlay text should be dark (black) for readability. */
-export function needsDarkText(level: number, theme: Theme): boolean {
-  if (theme === 'dark') return false;
+export function needsDarkText(level: number, blend: number): boolean {
+  if (blend < 0.5) return false;
   const [, , l] = levelToHSL(level);
-  // In light mode the glow lightness is l+30 (clamped 40–65).
-  // Above ~50% the background is too bright for white text.
   return l >= 20;
 }

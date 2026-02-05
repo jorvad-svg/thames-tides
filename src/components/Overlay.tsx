@@ -22,7 +22,7 @@ function formatTime(date: Date): string {
 
 export function Overlay({ data, theme, onToggleTheme }: OverlayProps) {
   const { currentLevel, tideState, lastUpdated, stationName } = data;
-  const dark = needsDarkText(currentLevel, theme);
+  const dark = needsDarkText(currentLevel, theme === 'light' ? 1 : 0);
 
   return (
     <div className="overlay" data-theme={theme} data-dark-text={dark || undefined}>

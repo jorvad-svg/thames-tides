@@ -90,13 +90,15 @@ export function drawTideCurve(
   ctx: CanvasRenderingContext2D,
   state: VisualizationState
 ): void {
-  const { width, height, predictions, currentLevel, theme } = state;
+  const { width, height, predictions, currentLevel, themeBlend } = state;
 
   if (predictions.length < 2) return;
 
   const curveTop = height * (1 - CURVE_HEIGHT_FRACTION);
   const curveBottom = height - 20;
-  const textColor = theme === 'light' ? 'rgba(0,0,0,' : 'rgba(255,255,255,';
+  // Blend text color between white (dark mode) and black (light mode)
+  const tw = Math.round(255 * (1 - themeBlend)); // 255 in dark, 0 in light
+  const textColor = `rgba(${tw},${tw},${tw},`;
   const curveHeight = curveBottom - curveTop;
 
   const now = Date.now();
@@ -126,7 +128,7 @@ export function drawTideCurve(
     curveBottom - mapRange(l, minLevel, maxLevel, 0, curveHeight);
 
   // Use glow color — always bright enough to see, even at low tide
-  const bright = (alpha: number) => levelToGlowColor(currentLevel, alpha, theme);
+  const bright = (alpha: number) => levelToGlowColor(currentLevel, alpha, themeBlend);
 
   ctx.save();
   ctx.lineCap = 'butt';
@@ -151,11 +153,11 @@ export function drawTideCurve(
     const x1 = edge === 'end' ? nowX : nowX + fadeLen;
     const grad = ctx.createLinearGradient(x0, 0, x1, 0);
     if (edge === 'end') {
-      grad.addColorStop(0, levelToGlowColor(currentLevel, alpha, theme));
-      grad.addColorStop(1, levelToGlowColor(currentLevel, 0, theme));
+      grad.addColorStop(0, levelToGlowColor(currentLevel, alpha, themeBlend));
+      grad.addColorStop(1, levelToGlowColor(currentLevel, 0, themeBlend));
     } else {
-      grad.addColorStop(0, levelToGlowColor(currentLevel, 0, theme));
-      grad.addColorStop(1, levelToGlowColor(currentLevel, alpha, theme));
+      grad.addColorStop(0, levelToGlowColor(currentLevel, 0, themeBlend));
+      grad.addColorStop(1, levelToGlowColor(currentLevel, alpha, themeBlend));
     }
     return grad;
   };
@@ -214,7 +216,7 @@ export function drawTideCurve(
       ctx.closePath();
 
       const fillGrad = ctx.createLinearGradient(0, curveTop, 0, curveBottom);
-      const fillAlpha = theme === 'light' ? 0.12 : 0.35;
+      const fillAlpha = 0.35 - themeBlend * 0.23; // 0.35 dark → 0.12 light
       fillGrad.addColorStop(0, bright(fillAlpha));
       fillGrad.addColorStop(1, bright(0.01));
       ctx.fillStyle = fillGrad;
@@ -278,7 +280,8 @@ export function drawTideCurve(
 
     ctx.beginPath();
     ctx.arc(nowX, currentY, 5, 0, Math.PI * 2);
-    ctx.fillStyle = theme === 'light' ? '#222' : '#fff';
+    const dv = Math.round(255 * (1 - themeBlend));
+    ctx.fillStyle = `rgb(${dv},${dv},${dv})`;
     ctx.fill();
   }
 

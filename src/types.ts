@@ -79,4 +79,5 @@ export interface VisualizationState {
   time: number; // animation time in seconds
   pointer: PointerState;
   theme: Theme;
+  themeBlend: number; // 0 = fully dark, 1 = fully light (animated)
 }
