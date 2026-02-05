@@ -47,9 +47,10 @@ function mix(a: number, b: number, t: number): number {
 
 export function levelToBackground(level: number, blend: number): string {
   const [h, s, l] = levelToHSL(level);
-  const finalS = mix(s * 0.5, s * 0.4, blend); // light mode keeps more saturation
+  const finalS = mix(s * 0.5, s * 0.7, blend); // light mode stays noticeably tinted
   const darkL = Math.min(l * 0.15, 8);
-  const finalL = mix(darkL, 88 + l * 0.08, blend); // slightly darker light bg
+  const lightL = 82 + (l < 30 ? l * 0.15 : l * 0.04); // darker warm tones, lighter cool tones
+  const finalL = mix(darkL, lightL, blend);
   return `hsl(${h}, ${finalS}%, ${finalL}%)`;
 }
 
@@ -58,7 +59,7 @@ export function levelToParticleColor(level: number, alpha: number, blend: number
   const darkS = Math.min(s + 15, 100);
   const darkL = clamp(l + 15, 25, 40);
   const lightS = Math.min(s + 25, 100);
-  const lightL = clamp(l + 25, 40, 60);
+  const lightL = clamp(l + 15, 35, 55);
   return `hsla(${h}, ${mix(darkS, lightS, blend)}%, ${mix(darkL, lightL, blend)}%, ${alpha})`;
 }
 
