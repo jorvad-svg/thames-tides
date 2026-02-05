@@ -82,6 +82,7 @@ export function useTideData(): { data: TideData | null; loading: boolean; error:
   const [error, setError] = useState<string | null>(null);
   const [stationName, setStationName] = useState('Tower Pier');
   const [predictions, setPredictions] = useState<TidalEvent[]>([]);
+  const [predictionsReady, setPredictionsReady] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -112,18 +113,23 @@ export function useTideData(): { data: TideData | null; loading: boolean; error:
 
   // Fetch predictions once on mount (they don't change frequently)
   useEffect(() => {
-    fetchTidalPredictions().then(setPredictions).catch(() => {});
+    fetchTidalPredictions()
+      .then(setPredictions)
+      .catch(() => {})
+      .finally(() => setPredictionsReady(true));
   }, []);
 
   useEffect(() => {
     fetchStationName().then(setStationName).catch(() => {});
   }, []);
 
+  // Only start the polling loop once predictions have been fetched
   useEffect(() => {
+    if (!predictionsReady) return;
     load();
     const interval = setInterval(load, POLL_INTERVAL);
     return () => clearInterval(interval);
-  }, [load]);
+  }, [load, predictionsReady]);
 
   return { data, loading, error };
 }
