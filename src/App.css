@@ -69,6 +69,15 @@ html, body, #root {
   transition: color 0.8s ease;
 }
 
+.overlay-countdown {
+  margin-top: 6px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.22);
+  font-weight: 300;
+  transition: color 0.8s ease;
+}
+
 .overlay-updated {
   position: absolute;
   bottom: 24px;
@@ -95,6 +104,10 @@ html, body, #root {
 
 .overlay[data-dark-text] .overlay-state {
   color: rgba(0, 0, 0, 0.35);
+}
+
+.overlay[data-dark-text] .overlay-countdown {
+  color: rgba(0, 0, 0, 0.25);
 }
 
 .overlay[data-dark-text] .overlay-updated {

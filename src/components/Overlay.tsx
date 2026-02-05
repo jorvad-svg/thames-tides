@@ -1,4 +1,4 @@
-import type { TideData, TideState, Theme } from '../types';
+import type { TideData, TideState, TidalEvent, Theme } from '../types';
 import { needsDarkText } from '../engine/color';
 
 interface OverlayProps {
@@ -20,8 +20,24 @@ function formatTime(date: Date): string {
   return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 }
 
+function timeUntilLabel(predictions: TidalEvent[], tideState: TideState): string | null {
+  const now = Date.now();
+  const targetType = (tideState === 'rising' || tideState === 'low_slack') ? 'high' : 'low';
+  const next = predictions.find((e) => e.type === targetType && e.time.getTime() > now);
+  if (!next) return null;
+
+  const diffMs = next.time.getTime() - now;
+  const totalMins = Math.round(diffMs / 60000);
+  const h = Math.floor(totalMins / 60);
+  const m = totalMins % 60;
+
+  const timePart = h > 0 ? `${h}h ${m}m` : `${m}m`;
+  const label = targetType === 'high' ? 'high tide' : 'low tide';
+  return `${timePart} until ${label}`;
+}
+
 export function Overlay({ data, theme, onToggleTheme }: OverlayProps) {
-  const { currentLevel, tideState, lastUpdated, stationName } = data;
+  const { currentLevel, tideState, lastUpdated, stationName, predictions } = data;
   const dark = needsDarkText(currentLevel, theme === 'light' ? 1 : 0);
 
   return (
@@ -45,6 +61,10 @@ export function Overlay({ data, theme, onToggleTheme }: OverlayProps) {
         <div className="overlay-state">
           {tideStateLabel(tideState)}
         </div>
+        {(() => {
+          const countdown = timeUntilLabel(predictions, tideState);
+          return countdown ? <div className="overlay-countdown">{countdown}</div> : null;
+        })()}
       </div>
 
       {/* Bottom right — last updated */}
