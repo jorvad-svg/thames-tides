@@ -1,5 +1,5 @@
-import type { TideReading, VisualizationState } from '../types';
-import { mapRange, clamp } from '../utils/math';
+import type { VisualizationState } from '../types';
+import { mapRange } from '../utils/math';
 import { levelToCSS } from './color';
 
 const CURVE_HEIGHT_FRACTION = 0.15; // Bottom 15% of screen
