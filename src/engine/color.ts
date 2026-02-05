@@ -6,8 +6,8 @@ const COLOR_STOPS: [number, [number, number, number]][] = [
   [-0.5, [195, 60, 18]], // Dark teal
   [0.5, [175, 55, 30]],  // Aquamarine
   [2.0, [165, 50, 42]],  // Cyan-green
-  [2.5, [38, 75, 42]],   // Gold (bridge to skip bright yellow)
-  [3.5, [20, 90, 45]],   // Deep amber
+  [2.5, [48, 70, 42]],   // Gold (bridge to skip bright yellow)
+  [3.5, [35, 85, 48]],   // Golden amber
 ];
 
 function lerpColor(
