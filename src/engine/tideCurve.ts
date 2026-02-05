@@ -345,7 +345,7 @@ export function drawTideCurve(
     const dotGrad = ctx.createRadialGradient(nowX, currentY, 0, nowX, currentY, 18);
     dotGrad.addColorStop(0, bright(1.0));
     dotGrad.addColorStop(0.4, bright(0.5));
-    dotGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    dotGrad.addColorStop(1, bright(0));
     ctx.fillStyle = dotGrad;
     ctx.fillRect(nowX - 18, currentY - 18, 36, 36);
 

@@ -29,7 +29,7 @@ export function drawCentralGlow(
   gradient.addColorStop(0, levelToGlowColor(currentLevel, 0.2 * glowDim, themeBlend));
   gradient.addColorStop(0.3, levelToGlowColor(currentLevel, 0.08 * glowDim, themeBlend));
   gradient.addColorStop(0.7, levelToGlowColor(currentLevel, 0.02 * glowDim, themeBlend));
-  gradient.addColorStop(1, 'rgba(0,0,0,0)');
+  gradient.addColorStop(1, levelToGlowColor(currentLevel, 0, themeBlend));
 
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, width, height);
@@ -50,7 +50,7 @@ export function drawCentralGlow(
   // Inner bright core
   const coreGradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
   coreGradient.addColorStop(0, levelToGlowColor(currentLevel, 0.15 * glowDim, themeBlend));
-  coreGradient.addColorStop(1, 'rgba(0,0,0,0)');
+  coreGradient.addColorStop(1, levelToGlowColor(currentLevel, 0, themeBlend));
 
   ctx.fillStyle = coreGradient;
   ctx.fillRect(cx - radius, cy - radius, radius * 2, radius * 2);
