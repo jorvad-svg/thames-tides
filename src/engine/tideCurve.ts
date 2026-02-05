@@ -186,13 +186,13 @@ function renderStaticLayer(state: VisualizationState): void {
     ctx.setLineDash([6, 4]);
 
     buildPath(future);
-    ctx.strokeStyle = fadingStroke(0.2, 'start');
-    ctx.lineWidth = 6;
+    ctx.strokeStyle = fadingStroke(0.15, 'start');
+    ctx.lineWidth = 3;
     ctx.stroke();
 
     buildPath(future);
-    ctx.strokeStyle = fadingStroke(0.45, 'start');
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = fadingStroke(0.4, 'start');
+    ctx.lineWidth = 1;
     ctx.stroke();
 
     ctx.setLineDash([]);
@@ -201,18 +201,18 @@ function renderStaticLayer(state: VisualizationState): void {
   // ── Past: solid, glowing ──
   if (past.length > 1) {
     buildPath(past);
-    ctx.strokeStyle = fadingStroke(0.35, 'end');
-    ctx.lineWidth = 8;
+    ctx.strokeStyle = fadingStroke(0.25, 'end');
+    ctx.lineWidth = 4;
     ctx.stroke();
 
     buildPath(past);
-    ctx.strokeStyle = fadingStroke(0.65, 'end');
-    ctx.lineWidth = 3;
+    ctx.strokeStyle = fadingStroke(0.55, 'end');
+    ctx.lineWidth = 2;
     ctx.stroke();
 
     buildPath(past);
     ctx.strokeStyle = fadingStroke(1.0, 'end');
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 1;
     ctx.stroke();
 
     // Fill under past curve
