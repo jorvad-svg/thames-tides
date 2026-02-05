@@ -6,12 +6,10 @@ const CURVE_HEIGHT_FRACTION = 0.15;
 const PADDING_X = 0; // curve runs edge-to-edge
 const LABEL_PAD = 60; // inset for time labels and markers
 const HALF_CYCLE = 6.2 * 3600 * 1000; // ~6.2h between consecutive high/low
+const CACHE_TTL = 30_000; // regenerate static layer every 30s
 
 /**
  * Extend predictions so they cover the full [start, end] window.
- * The Admiralty API may not include yesterday's last event, so the first
- * prediction can start hours after midnight. We synthesize boundary events
- * by mirroring the nearest event of the opposite type.
  */
 function padPredictions(
   predictions: TidalEvent[],
@@ -22,11 +20,9 @@ function padPredictions(
 
   const padded = [...predictions];
 
-  // Pad the start: if first prediction is after `start`, synthesize a prior event
   const first = padded[0];
   if (first.time.getTime() > start) {
     const oppositeType = first.type === 'high' ? 'low' : 'high';
-    // Find the nearest event of that type to estimate level
     const nearest = padded.find((e) => e.type === oppositeType);
     const level = nearest ? nearest.level : first.level;
     padded.unshift({
@@ -36,7 +32,6 @@ function padPredictions(
     });
   }
 
-  // Pad the end: if last prediction is before `end`, synthesize a following event
   const last = padded[padded.length - 1];
   if (last.time.getTime() < end) {
     const oppositeType = last.type === 'high' ? 'low' : 'high';
@@ -61,7 +56,7 @@ function interpolatePredictions(
   if (padded.length < 2) return [];
 
   const points: { time: number; level: number }[] = [];
-  const step = 3 * 60 * 1000; // every 3 minutes for smooth curve
+  const step = 3 * 60 * 1000;
 
   for (let i = 0; i < padded.length - 1; i++) {
     const a = padded[i];
@@ -86,20 +81,31 @@ function interpolatePredictions(
   return points;
 }
 
-export function drawTideCurve(
-  ctx: CanvasRenderingContext2D,
-  state: VisualizationState
-): void {
-  const { width, height, predictions, currentLevel, themeBlend } = state;
+// ── Offscreen cache for the static portion of the curve ──
+let cachedCanvas: OffscreenCanvas | null = null;
+let cacheKey = ''; // encodes width, height, themeBlend (rounded), predictions count
+let cacheTime = 0;
+// Keep interpolated points + scaling so the live "now" marker can use them
+let cachedPoints: { time: number; level: number }[] = [];
+let cachedMinLevel = 0;
+let cachedMaxLevel = 1;
+let cachedDayStart = 0;
+let cachedDayEnd = 0;
+let cachedCurveTop = 0;
+let cachedCurveBottom = 0;
 
-  if (predictions.length < 2) return;
+function buildCacheKey(w: number, h: number, blend: number, predCount: number): string {
+  return `${w}|${h}|${Math.round(blend * 20)}|${predCount}`;
+}
+
+function renderStaticLayer(state: VisualizationState): void {
+  const { width, height, predictions, currentLevel, themeBlend } = state;
 
   const curveTop = height * (1 - CURVE_HEIGHT_FRACTION);
   const curveBottom = height - 20;
-  // Blend text color between white (dark mode) and black (light mode)
-  const tw = Math.round(255 * (1 - themeBlend)); // 255 in dark, 0 in light
-  const textColor = `rgba(${tw},${tw},${tw},`;
   const curveHeight = curveBottom - curveTop;
+  const tw = Math.round(255 * (1 - themeBlend));
+  const textColor = `rgba(${tw},${tw},${tw},`;
 
   const now = Date.now();
   const today = new Date();
@@ -107,11 +113,12 @@ export function drawTideCurve(
   const dayStart = today.getTime();
   const dayEnd = dayStart + 24 * 3600 * 1000;
 
-  // Generate the full curve from Admiralty predictions (padded to cover midnight–midnight)
   const allPoints = interpolatePredictions(predictions, dayStart, dayEnd);
-  if (allPoints.length < 2) return;
+  if (allPoints.length < 2) {
+    cachedCanvas = null;
+    return;
+  }
 
-  // Find min/max for scaling
   let minLevel = Infinity;
   let maxLevel = -Infinity;
   for (const p of allPoints) {
@@ -122,15 +129,25 @@ export function drawTideCurve(
   minLevel -= levelPadding;
   maxLevel += levelPadding;
 
+  // Store for live marker use
+  cachedPoints = allPoints;
+  cachedMinLevel = minLevel;
+  cachedMaxLevel = maxLevel;
+  cachedDayStart = dayStart;
+  cachedDayEnd = dayEnd;
+  cachedCurveTop = curveTop;
+  cachedCurveBottom = curveBottom;
+
   const timeToX = (t: number) =>
     mapRange(t, dayStart, dayEnd, PADDING_X, width - PADDING_X);
   const levelToY = (l: number) =>
     curveBottom - mapRange(l, minLevel, maxLevel, 0, curveHeight);
-
-  // Use glow color — always bright enough to see, even at low tide
   const bright = (alpha: number) => levelToGlowColor(currentLevel, alpha, themeBlend);
 
-  ctx.save();
+  // Create offscreen canvas
+  const oc = new OffscreenCanvas(width, height);
+  const ctx = oc.getContext('2d')!;
+
   ctx.lineCap = 'butt';
 
   const buildPath = (points: { time: number; level: number }[]) => {
@@ -144,9 +161,8 @@ export function drawTideCurve(
     }
   };
 
-  // Horizontal gradient that fades at the "now" edge
   const nowX = timeToX(now);
-  const fadeLen = 50; // px to fade over
+  const fadeLen = 50;
 
   const fadingStroke = (alpha: number, edge: 'end' | 'start') => {
     const x0 = edge === 'end' ? nowX - fadeLen : nowX;
@@ -162,7 +178,6 @@ export function drawTideCurve(
     return grad;
   };
 
-  // Split into past and future
   const past = allPoints.filter((p) => p.time <= now);
   const future = allPoints.filter((p) => p.time >= now);
 
@@ -216,7 +231,7 @@ export function drawTideCurve(
       ctx.closePath();
 
       const fillGrad = ctx.createLinearGradient(0, curveTop, 0, curveBottom);
-      const fillAlpha = 0.35 - themeBlend * 0.23; // 0.35 dark → 0.12 light
+      const fillAlpha = 0.35 - themeBlend * 0.23;
       fillGrad.addColorStop(0, bright(fillAlpha));
       fillGrad.addColorStop(1, bright(0.01));
       ctx.fillStyle = fillGrad;
@@ -251,21 +266,75 @@ export function drawTideCurve(
     ctx.fillText(timeLabel, x, y + offset);
   }
 
-  // ── Current time marker with actual observed level ──
+  // ── Time labels (adaptive spacing) ──
+  ctx.font = '10px monospace';
+  ctx.fillStyle = textColor + '0.5)';
+  ctx.textAlign = 'center';
+
+  const usableWidth = width - LABEL_PAD * 2;
+  const hours = usableWidth < 300 ? 6 : usableWidth < 500 ? 4 : 3;
+  const interval = hours * 3600 * 1000;
+  const firstMark = Math.ceil(dayStart / interval) * interval;
+  for (let t = firstMark; t <= dayEnd; t += interval) {
+    const x = timeToX(t);
+    if (x < LABEL_PAD || x > width - LABEL_PAD) continue;
+    const d = new Date(t);
+    const label = `${d.getHours().toString().padStart(2, '0')}:00`;
+    ctx.fillText(label, x, curveBottom + 14);
+  }
+
+  cachedCanvas = oc;
+  cacheTime = now;
+}
+
+export function drawTideCurve(
+  ctx: CanvasRenderingContext2D,
+  state: VisualizationState
+): void {
+  const { width, height, predictions, currentLevel, themeBlend } = state;
+
+  if (predictions.length < 2) return;
+
+  // Rebuild static layer if stale, resized, or theme changed
+  const key = buildCacheKey(width, height, themeBlend, predictions.length);
+  const now = Date.now();
+  if (!cachedCanvas || key !== cacheKey || now - cacheTime > CACHE_TTL) {
+    cacheKey = key;
+    renderStaticLayer(state);
+  }
+
+  if (!cachedCanvas || cachedPoints.length < 2) return;
+
+  // Blit cached static layer
+  ctx.drawImage(cachedCanvas, 0, 0);
+
+  // ── Live: current time marker ──
+  const curveHeight = cachedCurveBottom - cachedCurveTop;
+  const tw = Math.round(255 * (1 - themeBlend));
+  const textColor = `rgba(${tw},${tw},${tw},`;
+  const bright = (alpha: number) => levelToGlowColor(currentLevel, alpha, themeBlend);
+
+  const timeToX = (t: number) =>
+    mapRange(t, cachedDayStart, cachedDayEnd, PADDING_X, width - PADDING_X);
+  const levelToY = (l: number) =>
+    cachedCurveBottom - mapRange(l, cachedMinLevel, cachedMaxLevel, 0, curveHeight);
+
+  const nowX = timeToX(now);
+
   if (nowX > PADDING_X && nowX < width - PADDING_X) {
+    ctx.save();
     ctx.beginPath();
-    ctx.moveTo(nowX, curveTop);
-    ctx.lineTo(nowX, curveBottom);
+    ctx.moveTo(nowX, cachedCurveTop);
+    ctx.lineTo(nowX, cachedCurveBottom);
     ctx.strokeStyle = textColor + '0.15)';
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    // Find predicted level at "now" for Y positioning on the curve
     let curveLevel = currentLevel;
-    for (let i = 0; i < allPoints.length - 1; i++) {
-      if (allPoints[i].time <= now && allPoints[i + 1].time >= now) {
-        const frac = (now - allPoints[i].time) / (allPoints[i + 1].time - allPoints[i].time);
-        curveLevel = allPoints[i].level + (allPoints[i + 1].level - allPoints[i].level) * frac;
+    for (let i = 0; i < cachedPoints.length - 1; i++) {
+      if (cachedPoints[i].time <= now && cachedPoints[i + 1].time >= now) {
+        const frac = (now - cachedPoints[i].time) / (cachedPoints[i + 1].time - cachedPoints[i].time);
+        curveLevel = cachedPoints[i].level + (cachedPoints[i + 1].level - cachedPoints[i].level) * frac;
         break;
       }
     }
@@ -283,25 +352,6 @@ export function drawTideCurve(
     const dv = Math.round(255 * (1 - themeBlend));
     ctx.fillStyle = `rgb(${dv},${dv},${dv})`;
     ctx.fill();
+    ctx.restore();
   }
-
-  // ── Time labels (adaptive spacing) ──
-  ctx.font = '10px monospace';
-  ctx.fillStyle = textColor + '0.5)';
-  ctx.textAlign = 'center';
-
-  // Choose interval so labels stay ~70+ px apart
-  const usableWidth = width - LABEL_PAD * 2;
-  const hours = usableWidth < 300 ? 6 : usableWidth < 500 ? 4 : 3;
-  const interval = hours * 3600 * 1000;
-  const firstMark = Math.ceil(dayStart / interval) * interval;
-  for (let t = firstMark; t <= dayEnd; t += interval) {
-    const x = timeToX(t);
-    if (x < LABEL_PAD || x > width - LABEL_PAD) continue;
-    const d = new Date(t);
-    const label = `${d.getHours().toString().padStart(2, '0')}:00`;
-    ctx.fillText(label, x, curveBottom + 14);
-  }
-
-  ctx.restore();
 }

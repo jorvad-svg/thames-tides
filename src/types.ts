@@ -54,7 +54,9 @@ export interface Particle {
   y: number;
   prevX: number;
   prevY: number;
-  trail: { x: number; y: number }[];
+  trail: Float32Array; // ring buffer: [x0,y0, x1,y1, ...] length = TRAIL_LENGTH * 2
+  trailHead: number;   // write index (0..TRAIL_LENGTH-1)
+  trailCount: number;  // how many slots are filled (0..TRAIL_LENGTH)
   speed: number;
   life: number;
   maxLife: number;
