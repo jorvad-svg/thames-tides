@@ -26,14 +26,22 @@ export interface EAStation {
 // ── Visualization types ──
 
 export type TideState = 'rising' | 'falling' | 'high_slack' | 'low_slack';
+export type Theme = 'dark' | 'light';
 
 export interface TideReading {
   time: Date;
   level: number; // mAOD
 }
 
+export interface TidalEvent {
+  type: 'high' | 'low';
+  time: Date;
+  level: number; // mAOD
+}
+
 export interface TideData {
   readings: TideReading[];
+  predictions: TidalEvent[];
   currentLevel: number;
   tideState: TideState;
   lastUpdated: Date;
@@ -67,6 +75,8 @@ export interface VisualizationState {
   tideState: TideState;
   rateOfChange: number;
   readings: TideReading[];
+  predictions: TidalEvent[];
   time: number; // animation time in seconds
   pointer: PointerState;
+  theme: Theme;
 }

@@ -1,7 +1,9 @@
-import type { TideData, TideState } from '../types';
+import type { TideData, TideState, Theme } from '../types';
 
 interface OverlayProps {
   data: TideData;
+  theme: Theme;
+  onToggleTheme: () => void;
 }
 
 function tideStateLabel(state: TideState): string {
@@ -17,15 +19,20 @@ function formatTime(date: Date): string {
   return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 }
 
-export function Overlay({ data }: OverlayProps) {
+export function Overlay({ data, theme, onToggleTheme }: OverlayProps) {
   const { currentLevel, tideState, lastUpdated, stationName } = data;
 
   return (
-    <div className="overlay">
+    <div className="overlay" data-theme={theme}>
       {/* Title — top left */}
       <div className="overlay-title">
         Thames at {stationName}
       </div>
+
+      {/* Theme toggle — top right */}
+      <button className="theme-toggle" onClick={onToggleTheme}>
+        {theme === 'dark' ? '☀' : '☾'}
+      </button>
 
       {/* Central level display */}
       <div className="overlay-center">

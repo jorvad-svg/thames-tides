@@ -1,35 +1,120 @@
-import type { VisualizationState } from '../types';
+import type { VisualizationState, TidalEvent } from '../types';
 import { mapRange } from '../utils/math';
-import { levelToCSS } from './color';
+import { levelToGlowColor } from './color';
 
-const CURVE_HEIGHT_FRACTION = 0.15; // Bottom 15% of screen
+const CURVE_HEIGHT_FRACTION = 0.15;
 const PADDING_X = 60;
+const HALF_CYCLE = 6.2 * 3600 * 1000; // ~6.2h between consecutive high/low
+
+/**
+ * Extend predictions so they cover the full [start, end] window.
+ * The Admiralty API may not include yesterday's last event, so the first
+ * prediction can start hours after midnight. We synthesize boundary events
+ * by mirroring the nearest event of the opposite type.
+ */
+function padPredictions(
+  predictions: TidalEvent[],
+  start: number,
+  end: number
+): TidalEvent[] {
+  if (predictions.length < 2) return predictions;
+
+  const padded = [...predictions];
+
+  // Pad the start: if first prediction is after `start`, synthesize a prior event
+  const first = padded[0];
+  if (first.time.getTime() > start) {
+    const oppositeType = first.type === 'high' ? 'low' : 'high';
+    // Find the nearest event of that type to estimate level
+    const nearest = padded.find((e) => e.type === oppositeType);
+    const level = nearest ? nearest.level : first.level;
+    padded.unshift({
+      type: oppositeType,
+      time: new Date(first.time.getTime() - HALF_CYCLE),
+      level,
+    });
+  }
+
+  // Pad the end: if last prediction is before `end`, synthesize a following event
+  const last = padded[padded.length - 1];
+  if (last.time.getTime() < end) {
+    const oppositeType = last.type === 'high' ? 'low' : 'high';
+    const nearest = [...padded].reverse().find((e) => e.type === oppositeType);
+    const level = nearest ? nearest.level : last.level;
+    padded.push({
+      type: oppositeType,
+      time: new Date(last.time.getTime() + HALF_CYCLE),
+      level,
+    });
+  }
+
+  return padded;
+}
+
+function interpolatePredictions(
+  predictions: TidalEvent[],
+  start: number,
+  end: number
+): { time: number; level: number }[] {
+  const padded = padPredictions(predictions, start, end);
+  if (padded.length < 2) return [];
+
+  const points: { time: number; level: number }[] = [];
+  const step = 3 * 60 * 1000; // every 3 minutes for smooth curve
+
+  for (let i = 0; i < padded.length - 1; i++) {
+    const a = padded[i];
+    const b = padded[i + 1];
+    const tA = a.time.getTime();
+    const tB = b.time.getTime();
+
+    for (let t = tA; t < tB; t += step) {
+      if (t < start || t > end) continue;
+      const frac = (t - tA) / (tB - tA);
+      const cos = (1 - Math.cos(frac * Math.PI)) / 2;
+      const level = a.level + (b.level - a.level) * cos;
+      points.push({ time: t, level });
+    }
+  }
+
+  const last = padded[padded.length - 1];
+  if (last.time.getTime() >= start && last.time.getTime() <= end) {
+    points.push({ time: last.time.getTime(), level: last.level });
+  }
+
+  return points;
+}
 
 export function drawTideCurve(
   ctx: CanvasRenderingContext2D,
   state: VisualizationState
 ): void {
-  const { width, height, readings, currentLevel } = state;
+  const { width, height, predictions, currentLevel, theme } = state;
 
-  if (readings.length < 2) return;
+  if (predictions.length < 2) return;
 
   const curveTop = height * (1 - CURVE_HEIGHT_FRACTION);
   const curveBottom = height - 20;
+  const textColor = theme === 'light' ? 'rgba(0,0,0,' : 'rgba(255,255,255,';
   const curveHeight = curveBottom - curveTop;
 
-  // Center "now" in the middle of the curve
   const now = Date.now();
-  const dayStart = now - 12 * 3600 * 1000;
-  const dayEnd = now + 12 * 3600 * 1000;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dayStart = today.getTime();
+  const dayEnd = dayStart + 24 * 3600 * 1000;
 
-  // Find min/max level for scaling
+  // Generate the full curve from Admiralty predictions (padded to cover midnight–midnight)
+  const allPoints = interpolatePredictions(predictions, dayStart, dayEnd);
+  if (allPoints.length < 2) return;
+
+  // Find min/max for scaling
   let minLevel = Infinity;
   let maxLevel = -Infinity;
-  for (const r of readings) {
-    minLevel = Math.min(minLevel, r.level);
-    maxLevel = Math.max(maxLevel, r.level);
+  for (const p of allPoints) {
+    minLevel = Math.min(minLevel, p.level);
+    maxLevel = Math.max(maxLevel, p.level);
   }
-  // Add some padding to the range
   const levelPadding = (maxLevel - minLevel) * 0.15 || 0.5;
   minLevel -= levelPadding;
   maxLevel += levelPadding;
@@ -39,23 +124,12 @@ export function drawTideCurve(
   const levelToY = (l: number) =>
     curveBottom - mapRange(l, minLevel, maxLevel, 0, curveHeight);
 
+  // Use glow color — always bright enough to see, even at low tide
+  const bright = (alpha: number) => levelToGlowColor(currentLevel, alpha, theme);
+
   ctx.save();
+  ctx.lineCap = 'butt';
 
-  const sortedReadings = [...readings].sort(
-    (a, b) => a.time.getTime() - b.time.getTime()
-  );
-
-  // ── Predicted future: shift readings from ~12.4h ago (one tidal cycle) ──
-  const TIDAL_PERIOD = 12.4 * 3600 * 1000;
-  const predicted: { time: number; level: number }[] = [];
-  for (const r of sortedReadings) {
-    const futureTime = r.time.getTime() + TIDAL_PERIOD;
-    if (futureTime > now && futureTime <= dayEnd) {
-      predicted.push({ time: futureTime, level: r.level });
-    }
-  }
-
-  // Helper: build path from point array
   const buildPath = (points: { time: number; level: number }[]) => {
     ctx.beginPath();
     let s = false;
@@ -67,96 +141,150 @@ export function drawTideCurve(
     }
   };
 
-  // ── Draw predicted curve (dashed, faded) ──
-  if (predicted.length > 1) {
+  // Horizontal gradient that fades at the "now" edge
+  const nowX = timeToX(now);
+  const fadeLen = 50; // px to fade over
+
+  const fadingStroke = (alpha: number, edge: 'end' | 'start') => {
+    const x0 = edge === 'end' ? nowX - fadeLen : nowX;
+    const x1 = edge === 'end' ? nowX : nowX + fadeLen;
+    const grad = ctx.createLinearGradient(x0, 0, x1, 0);
+    if (edge === 'end') {
+      grad.addColorStop(0, levelToGlowColor(currentLevel, alpha, theme));
+      grad.addColorStop(1, levelToGlowColor(currentLevel, 0, theme));
+    } else {
+      grad.addColorStop(0, levelToGlowColor(currentLevel, 0, theme));
+      grad.addColorStop(1, levelToGlowColor(currentLevel, alpha, theme));
+    }
+    return grad;
+  };
+
+  // Split into past and future
+  const past = allPoints.filter((p) => p.time <= now);
+  const future = allPoints.filter((p) => p.time >= now);
+
+  // ── Future: dashed ──
+  if (future.length > 1) {
     ctx.setLineDash([6, 4]);
 
-    buildPath(predicted);
-    ctx.strokeStyle = levelToCSS(currentLevel, 0.15);
-    ctx.lineWidth = 8;
+    buildPath(future);
+    ctx.strokeStyle = fadingStroke(0.2, 'start');
+    ctx.lineWidth = 6;
     ctx.stroke();
 
-    buildPath(predicted);
-    ctx.strokeStyle = levelToCSS(currentLevel, 0.35);
-    ctx.lineWidth = 2;
+    buildPath(future);
+    ctx.strokeStyle = fadingStroke(0.45, 'start');
+    ctx.lineWidth = 1.5;
     ctx.stroke();
 
     ctx.setLineDash([]);
   }
 
-  // ── Draw observed curve (solid, bright) ──
-  const observed = sortedReadings.map((r) => ({ time: r.time.getTime(), level: r.level }));
+  // ── Past: solid, glowing ──
+  if (past.length > 1) {
+    buildPath(past);
+    ctx.strokeStyle = fadingStroke(0.35, 'end');
+    ctx.lineWidth = 8;
+    ctx.stroke();
 
-  buildPath(observed);
-  ctx.strokeStyle = levelToCSS(currentLevel, 0.3);
-  ctx.lineWidth = 12;
-  ctx.stroke();
+    buildPath(past);
+    ctx.strokeStyle = fadingStroke(0.65, 'end');
+    ctx.lineWidth = 3;
+    ctx.stroke();
 
-  buildPath(observed);
-  ctx.strokeStyle = levelToCSS(currentLevel, 0.6);
-  ctx.lineWidth = 5;
-  ctx.stroke();
+    buildPath(past);
+    ctx.strokeStyle = fadingStroke(1.0, 'end');
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
 
-  buildPath(observed);
-  ctx.strokeStyle = levelToCSS(currentLevel, 1.0);
-  ctx.lineWidth = 2.5;
-  ctx.stroke();
+    // Fill under past curve
+    const visible = past.filter((p) => {
+      const x = timeToX(p.time);
+      return x >= PADDING_X && x <= width - PADDING_X;
+    });
 
-  // ── Filled area under observed curve ──
-  const visibleObs = observed.filter((p) => {
-    const x = timeToX(p.time);
-    return x >= PADDING_X && x <= width - PADDING_X;
-  });
+    if (visible.length > 1) {
+      ctx.beginPath();
+      ctx.moveTo(timeToX(visible[0].time), curveBottom);
+      for (const p of visible) {
+        ctx.lineTo(timeToX(p.time), levelToY(p.level));
+      }
+      ctx.lineTo(timeToX(visible[visible.length - 1].time), curveBottom);
+      ctx.closePath();
 
-  if (visibleObs.length > 1) {
-    ctx.beginPath();
-    ctx.moveTo(timeToX(visibleObs[0].time), curveBottom);
-    for (const p of visibleObs) {
-      ctx.lineTo(timeToX(p.time), levelToY(p.level));
+      const fillGrad = ctx.createLinearGradient(0, curveTop, 0, curveBottom);
+      fillGrad.addColorStop(0, bright(0.35));
+      fillGrad.addColorStop(1, bright(0.03));
+      ctx.fillStyle = fillGrad;
+      ctx.fill();
     }
-    ctx.lineTo(timeToX(visibleObs[visibleObs.length - 1].time), curveBottom);
-    ctx.closePath();
-
-    const fillGrad = ctx.createLinearGradient(0, curveTop, 0, curveBottom);
-    fillGrad.addColorStop(0, levelToCSS(currentLevel, 0.5));
-    fillGrad.addColorStop(1, levelToCSS(currentLevel, 0.05));
-    ctx.fillStyle = fillGrad;
-    ctx.fill();
   }
 
-  // Current time marker
-  const nowX = timeToX(now);
+  // ── High/low markers ──
+  ctx.font = '9px monospace';
+  ctx.textAlign = 'center';
+  for (const e of predictions) {
+    const t = e.time.getTime();
+    if (t < dayStart || t > dayEnd) continue;
+    const x = timeToX(t);
+    if (x < PADDING_X + 10 || x > width - PADDING_X - 10) continue;
+
+    const y = levelToY(e.level);
+
+    ctx.beginPath();
+    ctx.moveTo(x, y - 5);
+    ctx.lineTo(x + 4, y);
+    ctx.lineTo(x, y + 5);
+    ctx.lineTo(x - 4, y);
+    ctx.closePath();
+    ctx.fillStyle = bright(0.9);
+    ctx.fill();
+
+    const d = e.time;
+    const timeLabel = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+    const offset = e.type === 'high' ? -12 : 14;
+    ctx.fillStyle = textColor + '0.7)';
+    ctx.fillText(timeLabel, x, y + offset);
+  }
+
+  // ── Current time marker with actual observed level ──
   if (nowX > PADDING_X && nowX < width - PADDING_X) {
-    // Vertical line at current time
     ctx.beginPath();
     ctx.moveTo(nowX, curveTop);
     ctx.lineTo(nowX, curveBottom);
-    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+    ctx.strokeStyle = textColor + '0.15)';
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    // Glowing dot at current level
-    const currentY = levelToY(currentLevel);
-    const dotGrad = ctx.createRadialGradient(nowX, currentY, 0, nowX, currentY, 14);
-    dotGrad.addColorStop(0, levelToCSS(currentLevel, 1.0));
-    dotGrad.addColorStop(0.4, levelToCSS(currentLevel, 0.5));
+    // Find predicted level at "now" for Y positioning on the curve
+    let curveLevel = currentLevel;
+    for (let i = 0; i < allPoints.length - 1; i++) {
+      if (allPoints[i].time <= now && allPoints[i + 1].time >= now) {
+        const frac = (now - allPoints[i].time) / (allPoints[i + 1].time - allPoints[i].time);
+        curveLevel = allPoints[i].level + (allPoints[i + 1].level - allPoints[i].level) * frac;
+        break;
+      }
+    }
+
+    const currentY = levelToY(curveLevel);
+    const dotGrad = ctx.createRadialGradient(nowX, currentY, 0, nowX, currentY, 18);
+    dotGrad.addColorStop(0, bright(1.0));
+    dotGrad.addColorStop(0.4, bright(0.5));
     dotGrad.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = dotGrad;
-    ctx.fillRect(nowX - 14, currentY - 14, 28, 28);
+    ctx.fillRect(nowX - 18, currentY - 18, 36, 36);
 
-    // Inner dot
     ctx.beginPath();
-    ctx.arc(nowX, currentY, 4, 0, Math.PI * 2);
-    ctx.fillStyle = levelToCSS(currentLevel, 1);
+    ctx.arc(nowX, currentY, 5, 0, Math.PI * 2);
+    ctx.fillStyle = theme === 'light' ? '#222' : '#fff';
     ctx.fill();
   }
 
-  // Time labels
+  // ── Time labels ──
   ctx.font = '10px monospace';
-  ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  ctx.fillStyle = textColor + '0.5)';
   ctx.textAlign = 'center';
 
-  // Mark every 3 hours
   const threeHours = 3 * 3600 * 1000;
   const firstMark = Math.ceil(dayStart / threeHours) * threeHours;
   for (let t = firstMark; t <= dayEnd; t += threeHours) {

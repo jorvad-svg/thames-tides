@@ -1,14 +1,15 @@
 import { useRef, useEffect, useCallback } from 'react';
-import type { TideData, VisualizationState, PointerState } from '../types';
+import type { TideData, VisualizationState, PointerState, Theme } from '../types';
 import { useCanvasSize } from '../hooks/useCanvasSize';
 import { renderFrame, renderInitialBackground } from '../engine/renderer';
 import { initParticles, resizeParticles } from '../engine/particles';
 
 interface TideCanvasProps {
   data: TideData;
+  theme: Theme;
 }
 
-export function TideCanvas({ data }: TideCanvasProps) {
+export function TideCanvas({ data, theme }: TideCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { width, height, dpr } = useCanvasSize();
   const animTimeRef = useRef(0);
@@ -61,8 +62,8 @@ export function TideCanvas({ data }: TideCanvasProps) {
     if (!ctx) return;
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    renderInitialBackground(ctx, width, height, data.currentLevel);
-  }, [width, height, dpr, data.currentLevel]);
+    renderInitialBackground(ctx, width, height, data.currentLevel, theme);
+  }, [width, height, dpr, data.currentLevel, theme]);
 
   // Animation loop
   useEffect(() => {
@@ -90,8 +91,10 @@ export function TideCanvas({ data }: TideCanvasProps) {
         tideState: data.tideState,
         rateOfChange: data.rateOfChange,
         readings: data.readings,
+        predictions: data.predictions,
         time: animTimeRef.current,
         pointer: pointerRef.current,
+        theme,
       };
 
       renderFrame(ctx, state);
@@ -101,7 +104,7 @@ export function TideCanvas({ data }: TideCanvasProps) {
 
     animId = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(animId);
-  }, [width, height, dpr, data]);
+  }, [width, height, dpr, data, theme]);
 
   return (
     <canvas

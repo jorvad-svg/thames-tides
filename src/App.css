@@ -74,6 +74,44 @@ html, body, #root {
   font-weight: 300;
 }
 
+/* ── Light theme ── */
+
+/* ── Theme toggle ── */
+
+.theme-toggle {
+  position: absolute;
+  top: 24px;
+  right: 32px;
+  pointer-events: auto;
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  font-size: 14px;
+  line-height: 32px;
+  text-align: center;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.4);
+  transition: border-color 0.3s, color 0.3s;
+  padding: 0;
+}
+
+.theme-toggle:hover {
+  border-color: rgba(255, 255, 255, 0.35);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.overlay[data-theme="light"] .theme-toggle {
+  border-color: rgba(0, 0, 0, 0.15);
+  color: rgba(0, 0, 0, 0.4);
+}
+
+.overlay[data-theme="light"] .theme-toggle:hover {
+  border-color: rgba(0, 0, 0, 0.35);
+  color: rgba(0, 0, 0, 0.7);
+}
+
 /* ── Loading Screen ── */
 
 .loading-screen {

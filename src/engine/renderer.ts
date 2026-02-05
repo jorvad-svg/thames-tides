@@ -1,4 +1,4 @@
-import type { VisualizationState } from '../types';
+import type { VisualizationState, Theme } from '../types';
 import { levelToBackground } from './color';
 import { drawCentralGlow } from './centralGlow';
 import { updateAndDrawParticles } from './particles';
@@ -8,11 +8,11 @@ export function renderFrame(
   ctx: CanvasRenderingContext2D,
   state: VisualizationState
 ): void {
-  const { width, height, currentLevel } = state;
+  const { width, height, currentLevel, theme } = state;
 
   // Semi-transparent overlay for trail effect — clears slowly
-  ctx.fillStyle = levelToBackground(currentLevel);
-  ctx.globalAlpha = 0.07;
+  ctx.fillStyle = levelToBackground(currentLevel, theme);
+  ctx.globalAlpha = theme === 'light' ? 0.09 : 0.07;
   ctx.fillRect(0, 0, width, height);
   ctx.globalAlpha = 1.0;
 
@@ -30,9 +30,10 @@ export function renderInitialBackground(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
-  level: number
+  level: number,
+  theme: Theme
 ): void {
-  ctx.fillStyle = levelToBackground(level);
+  ctx.fillStyle = levelToBackground(level, theme);
   ctx.globalAlpha = 1.0;
   ctx.fillRect(0, 0, width, height);
 }

@@ -1,4 +1,5 @@
-import { mapRange, clamp } from '../utils/math';
+import { clamp } from '../utils/math';
+import type { Theme } from '../types';
 
 // Color stops: level (mAOD) → [hue, saturation%, lightness%]
 const COLOR_STOPS: [number, [number, number, number]][] = [
@@ -41,24 +42,26 @@ export function levelToCSS(level: number, alpha = 1): string {
   return `hsla(${h}, ${s}%, ${l}%, ${alpha})`;
 }
 
-export function levelToBackground(level: number): string {
+export function levelToBackground(level: number, theme: Theme): string {
   const [h, s, l] = levelToHSL(level);
-  // Darker version for background
+  if (theme === 'light') {
+    return `hsl(${h}, ${s * 0.15}%, ${92 + l * 0.1}%)`;
+  }
   return `hsl(${h}, ${s * 0.5}%, ${l * 0.15}%)`;
 }
 
-export function levelToParticleColor(level: number, alpha: number): string {
+export function levelToParticleColor(level: number, alpha: number, theme: Theme): string {
   const [h, s, l] = levelToHSL(level);
+  if (theme === 'light') {
+    return `hsla(${h}, ${Math.min(s + 25, 100)}%, ${clamp(l + 35, 45, 70)}%, ${alpha})`;
+  }
   return `hsla(${h}, ${Math.min(s + 15, 100)}%, ${Math.min(l + 40, 85)}%, ${alpha})`;
 }
 
-export function levelToGlowColor(level: number, alpha: number): string {
+export function levelToGlowColor(level: number, alpha: number, theme: Theme): string {
   const [h, s, l] = levelToHSL(level);
+  if (theme === 'light') {
+    return `hsla(${h}, ${Math.min(s + 20, 100)}%, ${clamp(l + 30, 40, 65)}%, ${alpha})`;
+  }
   return `hsla(${h}, ${s + 10}%, ${Math.min(l + 30, 85)}%, ${alpha})`;
-}
-
-export function levelToCurveColor(level: number): string {
-  return mapRange(level, -2, 3.5, 0, 1) > 0.5
-    ? 'rgba(255, 220, 150, 0.4)'
-    : 'rgba(120, 200, 255, 0.4)';
 }

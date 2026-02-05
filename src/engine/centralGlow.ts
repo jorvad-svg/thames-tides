@@ -9,7 +9,7 @@ export function drawCentralGlow(
   ctx: CanvasRenderingContext2D,
   state: VisualizationState
 ): void {
-  const { width, height, currentLevel, time } = state;
+  const { width, height, currentLevel, time, theme } = state;
   const cx = width / 2;
   const cy = height / 2;
 
@@ -23,9 +23,9 @@ export function drawCentralGlow(
 
   // Main radial glow
   const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius * 3);
-  gradient.addColorStop(0, levelToGlowColor(currentLevel, 0.2));
-  gradient.addColorStop(0.3, levelToGlowColor(currentLevel, 0.08));
-  gradient.addColorStop(0.7, levelToGlowColor(currentLevel, 0.02));
+  gradient.addColorStop(0, levelToGlowColor(currentLevel, 0.2, theme));
+  gradient.addColorStop(0.3, levelToGlowColor(currentLevel, 0.08, theme));
+  gradient.addColorStop(0.7, levelToGlowColor(currentLevel, 0.02, theme));
   gradient.addColorStop(1, 'rgba(0,0,0,0)');
 
   ctx.fillStyle = gradient;
@@ -39,14 +39,14 @@ export function drawCentralGlow(
 
     ctx.beginPath();
     ctx.arc(cx, cy, ringRadius, 0, Math.PI * 2);
-    ctx.strokeStyle = levelToGlowColor(currentLevel, alpha);
+    ctx.strokeStyle = levelToGlowColor(currentLevel, alpha, theme);
     ctx.lineWidth = 1.5;
     ctx.stroke();
   }
 
   // Inner bright core
   const coreGradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
-  coreGradient.addColorStop(0, levelToGlowColor(currentLevel, 0.15));
+  coreGradient.addColorStop(0, levelToGlowColor(currentLevel, 0.15, theme));
   coreGradient.addColorStop(1, 'rgba(0,0,0,0)');
 
   ctx.fillStyle = coreGradient;

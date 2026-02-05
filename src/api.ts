@@ -1,19 +1,20 @@
-import type { EAReading, TideReading } from './types';
+import type { EAReading, TideReading, TidalEvent } from './types';
 
-const BASE_URL = 'https://environment.data.gov.uk/flood-monitoring';
-const STATION_ID = '0007'; // Tower Pier
+// ── EA Flood Monitoring (observed readings) ──
+
+const EA_BASE = 'https://environment.data.gov.uk/flood-monitoring';
+const EA_STATION = '0007'; // Tower Pier
 
 export async function fetchStationName(): Promise<string> {
-  const res = await fetch(`${BASE_URL}/id/stations/${STATION_ID}`);
+  const res = await fetch(`${EA_BASE}/id/stations/${EA_STATION}`);
   if (!res.ok) throw new Error(`Station fetch failed: ${res.status}`);
   const data = await res.json();
   return data.items?.label ?? 'Tower Pier';
 }
 
 export async function fetchTodayReadings(): Promise<TideReading[]> {
-  // Fetch the last 24 hours of readings
   const res = await fetch(
-    `${BASE_URL}/id/stations/${STATION_ID}/readings?_sorted&_limit=200&parameter=level`
+    `${EA_BASE}/id/stations/${EA_STATION}/readings?_sorted&_limit=200&parameter=level`
   );
   if (!res.ok) throw new Error(`Readings fetch failed: ${res.status}`);
   const data = await res.json();
@@ -27,4 +28,40 @@ export async function fetchTodayReadings(): Promise<TideReading[]> {
       level: r.value,
     }))
     .sort((a, b) => a.time.getTime() - b.time.getTime());
+}
+
+// ── Admiralty Tidal API (predicted highs/lows) ──
+
+const ADMIRALTY_BASE = import.meta.env.DEV
+  ? '/api/admiralty/uktidalapi/api/V1'
+  : 'https://admiraltyapi.azure-api.net/uktidalapi/api/V1';
+const ADMIRALTY_STATION = '0113'; // London Bridge (Tower Pier)
+// Chart Datum to mAOD offset for London Bridge: CD is ~2.97m below OD
+const CD_TO_MAOD = -2.97;
+
+export async function fetchTidalPredictions(): Promise<TidalEvent[]> {
+  const apiKey = import.meta.env.VITE_ADMIRALTY_API_KEY;
+  if (!apiKey) return [];
+
+  try {
+    const res = await fetch(
+      `${ADMIRALTY_BASE}/Stations/${ADMIRALTY_STATION}/TidalEvents?duration=3`,
+      { headers: { 'Ocp-Apim-Subscription-Key': apiKey } }
+    );
+    if (!res.ok) return [];
+
+    const events: {
+      EventType: string;
+      DateTime: string;
+      Height: number;
+    }[] = await res.json();
+
+    return events.map((e) => ({
+      type: e.EventType === 'HighWater' ? 'high' as const : 'low' as const,
+      time: new Date(e.DateTime + 'Z'), // API returns UTC without Z suffix
+      level: e.Height + CD_TO_MAOD, // Convert Chart Datum → mAOD
+    }));
+  } catch {
+    return [];
+  }
 }

@@ -37,7 +37,7 @@ export function updateAndDrawParticles(
   ctx: CanvasRenderingContext2D,
   state: VisualizationState
 ): void {
-  const { width, height, currentLevel, tideState, rateOfChange, time, pointer } = state;
+  const { width, height, currentLevel, tideState, rateOfChange, time, pointer, theme } = state;
 
   while (particles.length < PARTICLE_COUNT) {
     particles.push(createParticle(width, height));
@@ -135,21 +135,21 @@ export function updateAndDrawParticles(
 
     // Layer 1: full trail, very thin, faded — ghostly tail
     drawSmooth(0, len);
-    ctx.strokeStyle = levelToParticleColor(currentLevel, baseAlpha * 0.25 + pointerBoost * 0.1);
+    ctx.strokeStyle = levelToParticleColor(currentLevel, baseAlpha * 0.25 + pointerBoost * 0.1, theme);
     ctx.lineWidth = p.size * 0.3;
     ctx.stroke();
 
     // Layer 2: last 60%, medium
     const s2 = Math.floor(len * 0.4);
     drawSmooth(s2, len);
-    ctx.strokeStyle = levelToParticleColor(currentLevel, baseAlpha * 0.5 + pointerBoost * 0.15);
+    ctx.strokeStyle = levelToParticleColor(currentLevel, baseAlpha * 0.5 + pointerBoost * 0.15, theme);
     ctx.lineWidth = p.size * 0.6;
     ctx.stroke();
 
     // Layer 3: last 30%, bright head
     const s3 = Math.floor(len * 0.7);
     drawSmooth(s3, len);
-    ctx.strokeStyle = levelToParticleColor(currentLevel, Math.min(baseAlpha * 0.9 + pointerBoost * 0.3, 1.0));
+    ctx.strokeStyle = levelToParticleColor(currentLevel, Math.min(baseAlpha * 0.9 + pointerBoost * 0.3, 1.0), theme);
     ctx.lineWidth = p.size;
     ctx.stroke();
   }
