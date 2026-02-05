@@ -1,0 +1,142 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #050a12;
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Overlay ── */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.overlay-title {
+  position: absolute;
+  top: 28px;
+  left: 32px;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.3);
+  font-weight: 300;
+}
+
+.overlay-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+
+.overlay-level {
+  font-size: 48px;
+  font-weight: 200;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.overlay-unit {
+  font-size: 20px;
+  color: rgba(255, 255, 255, 0.35);
+  margin-left: 4px;
+  font-weight: 300;
+}
+
+.overlay-state {
+  margin-top: 8px;
+  font-size: 14px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.3);
+  font-weight: 300;
+}
+
+.overlay-updated {
+  position: absolute;
+  bottom: 24px;
+  right: 32px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.2);
+  font-weight: 300;
+}
+
+/* ── Loading Screen ── */
+
+.loading-screen {
+  position: fixed;
+  inset: 0;
+  background: #050a12;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.loading-content {
+  text-align: center;
+}
+
+.loading-title {
+  font-size: 24px;
+  font-weight: 200;
+  color: rgba(255, 255, 255, 0.6);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-bottom: 24px;
+}
+
+.loading-subtitle {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.25);
+  font-weight: 300;
+  letter-spacing: 0.1em;
+}
+
+.loading-error {
+  font-size: 12px;
+  color: rgba(255, 120, 120, 0.7);
+  font-weight: 300;
+  max-width: 300px;
+}
+
+.loading-dots {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.dot:nth-child(2) {
+  animation-delay: 0.3s;
+}
+
+.dot:nth-child(3) {
+  animation-delay: 0.6s;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.2; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.3); }
+}
