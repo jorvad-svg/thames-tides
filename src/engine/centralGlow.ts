@@ -21,11 +21,14 @@ export function drawCentralGlow(
   const breathe = Math.sin(time * 0.4) * minDim * 0.015;
   const radius = baseRadius + breathe;
 
+  // Scale glow intensity down in dark mode to prevent bright accumulation
+  const glowDim = 1 - (1 - themeBlend) * 0.6; // 0.4 in dark, 1.0 in light
+
   // Main radial glow
   const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius * 3);
-  gradient.addColorStop(0, levelToGlowColor(currentLevel, 0.2, themeBlend));
-  gradient.addColorStop(0.3, levelToGlowColor(currentLevel, 0.08, themeBlend));
-  gradient.addColorStop(0.7, levelToGlowColor(currentLevel, 0.02, themeBlend));
+  gradient.addColorStop(0, levelToGlowColor(currentLevel, 0.2 * glowDim, themeBlend));
+  gradient.addColorStop(0.3, levelToGlowColor(currentLevel, 0.08 * glowDim, themeBlend));
+  gradient.addColorStop(0.7, levelToGlowColor(currentLevel, 0.02 * glowDim, themeBlend));
   gradient.addColorStop(1, 'rgba(0,0,0,0)');
 
   ctx.fillStyle = gradient;
@@ -35,7 +38,7 @@ export function drawCentralGlow(
   for (let i = 0; i < RING_COUNT; i++) {
     const phase = (time * RING_SPEED + i * (1 / RING_COUNT)) % 1;
     const ringRadius = radius * (1 + phase * 4);
-    const alpha = (1 - phase) * 0.12;
+    const alpha = (1 - phase) * 0.12 * glowDim;
 
     ctx.beginPath();
     ctx.arc(cx, cy, ringRadius, 0, Math.PI * 2);
@@ -46,7 +49,7 @@ export function drawCentralGlow(
 
   // Inner bright core
   const coreGradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
-  coreGradient.addColorStop(0, levelToGlowColor(currentLevel, 0.15, themeBlend));
+  coreGradient.addColorStop(0, levelToGlowColor(currentLevel, 0.15 * glowDim, themeBlend));
   coreGradient.addColorStop(1, 'rgba(0,0,0,0)');
 
   ctx.fillStyle = coreGradient;
