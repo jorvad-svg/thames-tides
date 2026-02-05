@@ -8,7 +8,7 @@ const MIN_LIFE = 500;
 const MAX_LIFE = 1200;
 const POINTER_RADIUS = 80;
 const POINTER_FORCE = 1.2;
-const TRAIL_LENGTH = 30;
+const TRAIL_LENGTH = 60;
 const ALPHA_BUCKETS = 8; // batch particles into N alpha levels
 
 function createParticle(width: number, height: number): Particle {
