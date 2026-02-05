@@ -103,10 +103,18 @@ export function TideCanvas({ data, theme }: TideCanvasProps) {
     if (!ctx) return;
 
     let animId: number;
+    const FRAME_INTERVAL = 1000 / 30; // cap at 30fps
 
     const animate = (timestamp: number) => {
       if (lastFrameRef.current === 0) lastFrameRef.current = timestamp;
-      const dt = (timestamp - lastFrameRef.current) / 1000;
+
+      const elapsed = timestamp - lastFrameRef.current;
+      if (elapsed < FRAME_INTERVAL) {
+        animId = requestAnimationFrame(animate);
+        return;
+      }
+
+      const dt = elapsed / 1000;
       lastFrameRef.current = timestamp;
       animTimeRef.current += dt;
 
