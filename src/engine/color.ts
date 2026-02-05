@@ -65,3 +65,12 @@ export function levelToGlowColor(level: number, alpha: number, theme: Theme): st
   }
   return `hsla(${h}, ${s + 10}%, ${Math.min(l + 30, 85)}%, ${alpha})`;
 }
+
+/** Returns true when overlay text should be dark (black) for readability. */
+export function needsDarkText(level: number, theme: Theme): boolean {
+  if (theme === 'dark') return false;
+  const [, , l] = levelToHSL(level);
+  // In light mode the glow lightness is l+30 (clamped 40–65).
+  // Above ~50% the background is too bright for white text.
+  return l >= 20;
+}

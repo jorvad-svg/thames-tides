@@ -74,7 +74,37 @@ html, body, #root {
   font-weight: 300;
 }
 
-/* ── Light theme ── */
+/* ── Dynamic dark text (light mode + bright tide colors) ── */
+
+.overlay[data-dark-text] .overlay-title {
+  color: rgba(0, 0, 0, 0.35);
+}
+
+.overlay[data-dark-text] .overlay-level {
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.overlay[data-dark-text] .overlay-unit {
+  color: rgba(0, 0, 0, 0.3);
+}
+
+.overlay[data-dark-text] .overlay-state {
+  color: rgba(0, 0, 0, 0.35);
+}
+
+.overlay[data-dark-text] .overlay-updated {
+  color: rgba(0, 0, 0, 0.25);
+}
+
+.overlay[data-dark-text] .theme-toggle {
+  border-color: rgba(0, 0, 0, 0.15);
+  color: rgba(0, 0, 0, 0.4);
+}
+
+.overlay[data-dark-text] .theme-toggle:hover {
+  border-color: rgba(0, 0, 0, 0.35);
+  color: rgba(0, 0, 0, 0.7);
+}
 
 /* ── Theme toggle ── */
 

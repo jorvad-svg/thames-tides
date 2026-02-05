@@ -1,4 +1,5 @@
 import type { TideData, TideState, Theme } from '../types';
+import { needsDarkText } from '../engine/color';
 
 interface OverlayProps {
   data: TideData;
@@ -21,9 +22,10 @@ function formatTime(date: Date): string {
 
 export function Overlay({ data, theme, onToggleTheme }: OverlayProps) {
   const { currentLevel, tideState, lastUpdated, stationName } = data;
+  const dark = needsDarkText(currentLevel, theme);
 
   return (
-    <div className="overlay" data-theme={theme}>
+    <div className="overlay" data-theme={theme} data-dark-text={dark || undefined}>
       {/* Title — top left */}
       <div className="overlay-title">
         Thames at {stationName}
