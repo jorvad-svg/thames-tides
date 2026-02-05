@@ -40,26 +40,48 @@ const ADMIRALTY_STATION = '0113'; // London Bridge (Tower Pier)
 const CD_TO_MAOD = -2.97;
 
 export async function fetchTidalPredictions(): Promise<TidalEvent[]> {
+  // In dev mode, use the Vite proxy to hit the live API
   const apiKey = import.meta.env.VITE_ADMIRALTY_API_KEY;
-  if (!apiKey) return [];
+  if (import.meta.env.DEV && apiKey) {
+    try {
+      const res = await fetch(
+        `${ADMIRALTY_BASE}/Stations/${ADMIRALTY_STATION}/TidalEvents?duration=3`,
+        { headers: { 'Ocp-Apim-Subscription-Key': apiKey } }
+      );
+      if (res.ok) {
+        const events: {
+          EventType: string;
+          DateTime: string;
+          Height: number;
+        }[] = await res.json();
 
+        return events.map((e) => ({
+          type: e.EventType === 'HighWater' ? 'high' as const : 'low' as const,
+          time: new Date(e.DateTime + 'Z'),
+          level: e.Height + CD_TO_MAOD,
+        }));
+      }
+    } catch {
+      // fall through to static file
+    }
+  }
+
+  // In production (or if live API fails), use build-time predictions
   try {
-    const res = await fetch(
-      `${ADMIRALTY_BASE}/Stations/${ADMIRALTY_STATION}/TidalEvents?duration=3`,
-      { headers: { 'Ocp-Apim-Subscription-Key': apiKey } }
-    );
+    const base = import.meta.env.BASE_URL;
+    const res = await fetch(`${base}data/predictions.json`);
     if (!res.ok) return [];
 
-    const events: {
-      EventType: string;
-      DateTime: string;
-      Height: number;
+    const predictions: {
+      type: 'high' | 'low';
+      time: string;
+      level: number;
     }[] = await res.json();
 
-    return events.map((e) => ({
-      type: e.EventType === 'HighWater' ? 'high' as const : 'low' as const,
-      time: new Date(e.DateTime + 'Z'), // API returns UTC without Z suffix
-      level: e.Height + CD_TO_MAOD, // Convert Chart Datum → mAOD
+    return predictions.map((p) => ({
+      type: p.type,
+      time: new Date(p.time),
+      level: p.level,
     }));
   } catch {
     return [];
