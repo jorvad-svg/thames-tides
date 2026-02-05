@@ -47,9 +47,9 @@ function mix(a: number, b: number, t: number): number {
 
 export function levelToBackground(level: number, blend: number): string {
   const [h, s, l] = levelToHSL(level);
-  const finalS = mix(s * 0.5, s * 0.15, blend);
-  const darkL = Math.min(l * 0.15, 8); // cap dark-mode background so greens stay dark
-  const finalL = mix(darkL, 92 + l * 0.1, blend);
+  const finalS = mix(s * 0.5, s * 0.4, blend); // light mode keeps more saturation
+  const darkL = Math.min(l * 0.15, 8);
+  const finalL = mix(darkL, 88 + l * 0.08, blend); // slightly darker light bg
   return `hsl(${h}, ${finalS}%, ${finalL}%)`;
 }
 
@@ -58,7 +58,7 @@ export function levelToParticleColor(level: number, alpha: number, blend: number
   const darkS = Math.min(s + 15, 100);
   const darkL = clamp(l + 15, 25, 40);
   const lightS = Math.min(s + 25, 100);
-  const lightL = clamp(l + 35, 45, 70);
+  const lightL = clamp(l + 25, 40, 60);
   return `hsla(${h}, ${mix(darkS, lightS, blend)}%, ${mix(darkL, lightL, blend)}%, ${alpha})`;
 }
 
@@ -67,7 +67,7 @@ export function levelToGlowColor(level: number, alpha: number, blend: number): s
   const darkS = s + 10;
   const darkL = clamp(l + 10, 20, 35);
   const lightS = Math.min(s + 20, 100);
-  const lightL = clamp(l + 30, 40, 65);
+  const lightL = clamp(l + 20, 35, 55);
   return `hsla(${h}, ${mix(darkS, lightS, blend)}%, ${mix(darkL, lightL, blend)}%, ${alpha})`;
 }
 
