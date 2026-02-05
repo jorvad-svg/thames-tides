@@ -94,12 +94,12 @@ let cachedDayEnd = 0;
 let cachedCurveTop = 0;
 let cachedCurveBottom = 0;
 
-function buildCacheKey(w: number, h: number, blend: number, predCount: number): string {
-  return `${w}|${h}|${Math.round(blend * 20)}|${predCount}`;
+function buildCacheKey(w: number, h: number, dpr: number, blend: number, predCount: number): string {
+  return `${w}|${h}|${dpr}|${Math.round(blend * 20)}|${predCount}`;
 }
 
 function renderStaticLayer(state: VisualizationState): void {
-  const { width, height, predictions, currentLevel, themeBlend } = state;
+  const { width, height, dpr, predictions, currentLevel, themeBlend } = state;
 
   const curveTop = height * (1 - CURVE_HEIGHT_FRACTION);
   const curveBottom = height - 20;
@@ -144,9 +144,10 @@ function renderStaticLayer(state: VisualizationState): void {
     curveBottom - mapRange(l, minLevel, maxLevel, 0, curveHeight);
   const bright = (alpha: number) => levelToGlowColor(currentLevel, alpha, themeBlend);
 
-  // Create offscreen canvas
-  const oc = new OffscreenCanvas(width, height);
+  // Create offscreen canvas at full DPR resolution
+  const oc = new OffscreenCanvas(width * dpr, height * dpr);
   const ctx = oc.getContext('2d')!;
+  ctx.scale(dpr, dpr);
 
   ctx.lineCap = 'butt';
 
@@ -296,7 +297,8 @@ export function drawTideCurve(
   if (predictions.length < 2) return;
 
   // Rebuild static layer if stale, resized, or theme changed
-  const key = buildCacheKey(width, height, themeBlend, predictions.length);
+  const { dpr } = state;
+  const key = buildCacheKey(width, height, dpr, themeBlend, predictions.length);
   const now = Date.now();
   if (!cachedCanvas || key !== cacheKey || now - cacheTime > CACHE_TTL) {
     cacheKey = key;
@@ -305,8 +307,8 @@ export function drawTideCurve(
 
   if (!cachedCanvas || cachedPoints.length < 2) return;
 
-  // Blit cached static layer
-  ctx.drawImage(cachedCanvas, 0, 0);
+  // Blit cached static layer at logical size
+  ctx.drawImage(cachedCanvas, 0, 0, width, height);
 
   // ── Live: current time marker ──
   const curveHeight = cachedCurveBottom - cachedCurveTop;
