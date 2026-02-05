@@ -285,14 +285,17 @@ export function drawTideCurve(
     ctx.fill();
   }
 
-  // ── Time labels ──
+  // ── Time labels (adaptive spacing) ──
   ctx.font = '10px monospace';
   ctx.fillStyle = textColor + '0.5)';
   ctx.textAlign = 'center';
 
-  const threeHours = 3 * 3600 * 1000;
-  const firstMark = Math.ceil(dayStart / threeHours) * threeHours;
-  for (let t = firstMark; t <= dayEnd; t += threeHours) {
+  // Choose interval so labels stay ~70+ px apart
+  const usableWidth = width - LABEL_PAD * 2;
+  const hours = usableWidth < 300 ? 6 : usableWidth < 500 ? 4 : 3;
+  const interval = hours * 3600 * 1000;
+  const firstMark = Math.ceil(dayStart / interval) * interval;
+  for (let t = firstMark; t <= dayEnd; t += interval) {
     const x = timeToX(t);
     if (x < LABEL_PAD || x > width - LABEL_PAD) continue;
     const d = new Date(t);
