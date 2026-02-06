@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <!-- Background gradient: deep teal to midnight -->
+    <radialGradient id="bg" cx="50%" cy="50%" r="70%">
+      <stop offset="0%" stop-color="#1a3d4d"/>
+      <stop offset="100%" stop-color="#050e14"/>
+    </radialGradient>
+
+    <!-- Caustic light colour -->
+    <radialGradient id="causticGlow" cx="50%" cy="45%" r="55%">
+      <stop offset="0%" stop-color="#5ec4c8" stop-opacity="0.5"/>
+      <stop offset="60%" stop-color="#2a7a8a" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#0d2030" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Caustic line style -->
+    <filter id="glow">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <filter id="softGlow">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Rounded square clip for iOS-style shape -->
+    <clipPath id="roundClip">
+      <rect x="0" y="0" width="512" height="512" rx="100" ry="100"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#roundClip)">
+    <!-- Background -->
+    <rect width="512" height="512" fill="url(#bg)"/>
+
+    <!-- Central ambient glow -->
+    <rect width="512" height="512" fill="url(#causticGlow)"/>
+
+    <!-- Caustic light network - organic bright ridges -->
+    <g filter="url(#glow)" fill="none" stroke-linecap="round">
+      <!-- Primary caustic lines - brighter, thicker -->
+      <path d="M80,180 Q150,160 200,190 Q260,220 320,185 Q380,150 440,175"
+            stroke="#5ec4c8" stroke-width="2.5" opacity="0.7"/>
+      <path d="M60,240 Q130,215 190,250 Q250,285 310,245 Q370,205 460,235"
+            stroke="#6cd0d4" stroke-width="2" opacity="0.6"/>
+      <path d="M70,300 Q140,275 210,310 Q270,340 340,300 Q400,265 450,295"
+            stroke="#5ec4c8" stroke-width="2.5" opacity="0.65"/>
+      <path d="M90,360 Q160,340 220,365 Q280,390 350,355 Q410,320 445,350"
+            stroke="#4db8bc" stroke-width="2" opacity="0.5"/>
+
+      <!-- Secondary caustic lines - thinner, connecting -->
+      <path d="M120,150 Q180,200 220,170 Q270,140 330,180 Q390,220 430,190"
+            stroke="#7edce0" stroke-width="1.5" opacity="0.4"/>
+      <path d="M100,210 Q160,250 230,220 Q290,190 350,230 Q420,270 470,240"
+            stroke="#7edce0" stroke-width="1.2" opacity="0.35"/>
+      <path d="M80,270 Q150,300 220,275 Q280,250 340,280 Q400,310 460,280"
+            stroke="#6cd0d4" stroke-width="1.5" opacity="0.4"/>
+      <path d="M110,330 Q170,360 240,335 Q300,310 360,340 Q420,370 460,345"
+            stroke="#7edce0" stroke-width="1.2" opacity="0.35"/>
+
+      <!-- Fine detail caustic lines -->
+      <path d="M140,190 Q200,175 250,200 Q310,230 370,195"
+            stroke="#90e8ec" stroke-width="1" opacity="0.25"/>
+      <path d="M130,260 Q190,240 250,265 Q310,290 380,255"
+            stroke="#90e8ec" stroke-width="1" opacity="0.25"/>
+      <path d="M150,320 Q210,300 270,325 Q330,350 390,315"
+            stroke="#90e8ec" stroke-width="1" opacity="0.2"/>
+
+      <!-- Bright concentrated nodes where caustics converge -->
+      <circle cx="210" cy="195" r="4" fill="#8ee0e4" opacity="0.6"/>
+      <circle cx="310" cy="245" r="3.5" fill="#8ee0e4" opacity="0.5"/>
+      <circle cx="250" cy="280" r="5" fill="#7edce0" opacity="0.55"/>
+      <circle cx="350" cy="305" r="3" fill="#8ee0e4" opacity="0.45"/>
+      <circle cx="180" cy="310" r="3.5" fill="#8ee0e4" opacity="0.4"/>
+    </g>
+
+    <!-- Tide wave silhouette at the bottom -->
+    <g filter="url(#softGlow)">
+      <path d="M0,420 Q80,385 160,400 Q240,415 320,390 Q400,365 480,385 L512,380 L512,512 L0,512 Z"
+            fill="#1a4858" opacity="0.6"/>
+      <path d="M0,420 Q80,385 160,400 Q240,415 320,390 Q400,365 480,385 L512,380"
+            fill="none" stroke="#5ec4c8" stroke-width="2" opacity="0.7"/>
+    </g>
+
+    <!-- Subtle "now" marker dot on the wave -->
+    <circle cx="256" cy="405" r="6" fill="#e0f4f4" opacity="0.8"/>
+    <circle cx="256" cy="405" r="12" fill="#5ec4c8" opacity="0.2"/>
+  </g>
+</svg>
