@@ -65,6 +65,7 @@ export function Overlay({ data, theme, onToggleTheme }: OverlayProps) {
       <div className="overlay-title">
         Thames at Hays Court
         <div className="overlay-station">Station: {stationName}</div>
+        <div className="overlay-updated">Last updated {formatTime(lastUpdated)}</div>
       </div>
 
       {/* Theme toggle — top right */}
@@ -87,10 +88,6 @@ export function Overlay({ data, theme, onToggleTheme }: OverlayProps) {
         })()}
       </div>
 
-      {/* Bottom right — last updated */}
-      <div className="overlay-updated">
-        Last updated {formatTime(lastUpdated)}
-      </div>
     </div>
   );
 }
