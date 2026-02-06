@@ -20,6 +20,25 @@ function formatTime(date: Date): string {
   return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 }
 
+function depthAboveLow(currentLevel: number, predictions: TidalEvent[], tideState: TideState): number {
+  const now = Date.now();
+  const lows = predictions.filter((e) => e.type === 'low');
+  if (lows.length === 0) return currentLevel;
+
+  // Find the relevant low: if rising/low_slack, use the most recent low;
+  // if falling/high_slack, use the upcoming low
+  let refLow: TidalEvent | undefined;
+  if (tideState === 'rising' || tideState === 'low_slack') {
+    refLow = [...lows].reverse().find((e) => e.time.getTime() <= now);
+    if (!refLow) refLow = lows[0]; // fallback to nearest
+  } else {
+    refLow = lows.find((e) => e.time.getTime() >= now);
+    if (!refLow) refLow = lows[lows.length - 1]; // fallback
+  }
+
+  return Math.max(0, currentLevel - refLow.level);
+}
+
 function timeUntilLabel(predictions: TidalEvent[], tideState: TideState): string | null {
   const now = Date.now();
   const targetType = (tideState === 'rising' || tideState === 'low_slack') ? 'high' : 'low';
@@ -56,7 +75,7 @@ export function Overlay({ data, theme, onToggleTheme }: OverlayProps) {
       {/* Central level display */}
       <div className="overlay-center">
         <div className="overlay-level">
-          {currentLevel.toFixed(2)}
+          {depthAboveLow(currentLevel, predictions, tideState).toFixed(2)}
           <span className="overlay-unit">m</span>
         </div>
         <div className="overlay-state">

@@ -3,14 +3,17 @@ import { mapRange } from '../utils/math';
 import { levelToGlowColor } from './color';
 
 const CURVE_HEIGHT_FRACTION = 0.15;
-const PADDING_X = 0; // curve runs edge-to-edge
-const LABEL_PAD = 60; // inset for time labels and markers
-const HALF_CYCLE = 6.2 * 3600 * 1000; // ~6.2h between consecutive high/low
-const CACHE_TTL = 30_000; // regenerate static layer every 30s
+const LABEL_PAD = 40;
+const HALF_CYCLE = 6.2 * 3600 * 1000;
+const CACHE_TTL = 30_000;
 
-/**
- * Extend predictions so they cover the full [start, end] window.
- */
+// Vertical float: curve rises/falls with tide level
+const MAX_FLOAT_FRACTION = 0.06; // max upward shift as fraction of screen height
+
+// Scrolling window: hours of past/future visible from centre
+const PAST_HOURS = 12;
+const FUTURE_HOURS = 12;
+
 function padPredictions(
   predictions: TidalEvent[],
   start: number,
@@ -20,8 +23,9 @@ function padPredictions(
 
   const padded = [...predictions];
 
-  const first = padded[0];
-  if (first.time.getTime() > start) {
+  // Pad start
+  while (padded.length > 0 && padded[0].time.getTime() > start) {
+    const first = padded[0];
     const oppositeType = first.type === 'high' ? 'low' : 'high';
     const nearest = padded.find((e) => e.type === oppositeType);
     const level = nearest ? nearest.level : first.level;
@@ -32,8 +36,9 @@ function padPredictions(
     });
   }
 
-  const last = padded[padded.length - 1];
-  if (last.time.getTime() < end) {
+  // Pad end
+  while (padded.length > 0 && padded[padded.length - 1].time.getTime() < end) {
+    const last = padded[padded.length - 1];
     const oppositeType = last.type === 'high' ? 'low' : 'high';
     const nearest = [...padded].reverse().find((e) => e.type === oppositeType);
     const level = nearest ? nearest.level : last.level;
@@ -81,21 +86,20 @@ function interpolatePredictions(
   return points;
 }
 
-// ── Offscreen cache for the static portion of the curve ──
+// ── Cache ──
 let cachedCanvas: OffscreenCanvas | null = null;
-let cacheKey = ''; // encodes width, height, themeBlend (rounded), predictions count
+let cacheKey = '';
 let cacheTime = 0;
-// Keep interpolated points + scaling so the live "now" marker can use them
 let cachedPoints: { time: number; level: number }[] = [];
 let cachedMinLevel = 0;
 let cachedMaxLevel = 1;
-let cachedDayStart = 0;
-let cachedDayEnd = 0;
+let cachedWindowStart = 0;
+let cachedWindowEnd = 0;
 let cachedCurveTop = 0;
 let cachedCurveBottom = 0;
 
-function buildCacheKey(w: number, h: number, dpr: number, blend: number, predCount: number): string {
-  return `${w}|${h}|${dpr}|${Math.round(blend * 20)}|${predCount}`;
+function buildCacheKey(w: number, h: number, dpr: number, blend: number, predCount: number, nowMinute: number): string {
+  return `${w}|${h}|${dpr}|${Math.round(blend * 20)}|${predCount}|${nowMinute}`;
 }
 
 function renderStaticLayer(state: VisualizationState): void {
@@ -108,12 +112,10 @@ function renderStaticLayer(state: VisualizationState): void {
   const textColor = `rgba(${tw},${tw},${tw},`;
 
   const now = Date.now();
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const dayStart = today.getTime();
-  const dayEnd = dayStart + 24 * 3600 * 1000;
+  const windowStart = now - PAST_HOURS * 3600 * 1000;
+  const windowEnd = now + FUTURE_HOURS * 3600 * 1000;
 
-  const allPoints = interpolatePredictions(predictions, dayStart, dayEnd);
+  const allPoints = interpolatePredictions(predictions, windowStart, windowEnd);
   if (allPoints.length < 2) {
     cachedCanvas = null;
     return;
@@ -129,40 +131,40 @@ function renderStaticLayer(state: VisualizationState): void {
   minLevel -= levelPadding;
   maxLevel += levelPadding;
 
-  // Store for live marker use
   cachedPoints = allPoints;
   cachedMinLevel = minLevel;
   cachedMaxLevel = maxLevel;
-  cachedDayStart = dayStart;
-  cachedDayEnd = dayEnd;
+  cachedWindowStart = windowStart;
+  cachedWindowEnd = windowEnd;
   cachedCurveTop = curveTop;
   cachedCurveBottom = curveBottom;
 
+  // Now is always at screen centre
   const timeToX = (t: number) =>
-    mapRange(t, dayStart, dayEnd, PADDING_X, width - PADDING_X);
+    mapRange(t, windowStart, windowEnd, 0, width);
   const levelToY = (l: number) =>
     curveBottom - mapRange(l, minLevel, maxLevel, 0, curveHeight);
   const bright = (alpha: number) => levelToGlowColor(currentLevel, alpha, themeBlend);
 
-  // Create offscreen canvas at full DPR resolution
   const oc = new OffscreenCanvas(width * dpr, height * dpr);
   const ctx = oc.getContext('2d')!;
   ctx.scale(dpr, dpr);
-
   ctx.lineCap = 'butt';
 
+  const nowX = timeToX(now);
+
+  // ── Build path helper ──
   const buildPath = (points: { time: number; level: number }[]) => {
     ctx.beginPath();
     let s = false;
     for (const p of points) {
       const x = timeToX(p.time);
       const y = levelToY(p.level);
-      if (x < PADDING_X || x > width - PADDING_X) continue;
       if (!s) { ctx.moveTo(x, y); s = true; } else { ctx.lineTo(x, y); }
     }
   };
 
-  const nowX = timeToX(now);
+  // ── Crossfade gradients at the now-line ──
   const fadeLen = 50;
 
   const fadingStroke = (alpha: number, edge: 'end' | 'start') => {
@@ -217,18 +219,13 @@ function renderStaticLayer(state: VisualizationState): void {
     ctx.stroke();
 
     // Fill under past curve
-    const visible = past.filter((p) => {
-      const x = timeToX(p.time);
-      return x >= PADDING_X && x <= width - PADDING_X;
-    });
-
-    if (visible.length > 1) {
+    if (past.length > 1) {
       ctx.beginPath();
-      ctx.moveTo(timeToX(visible[0].time), curveBottom);
-      for (const p of visible) {
+      ctx.moveTo(timeToX(past[0].time), curveBottom);
+      for (const p of past) {
         ctx.lineTo(timeToX(p.time), levelToY(p.level));
       }
-      ctx.lineTo(timeToX(visible[visible.length - 1].time), curveBottom);
+      ctx.lineTo(timeToX(past[past.length - 1].time), curveBottom);
       ctx.closePath();
 
       const fillGrad = ctx.createLinearGradient(0, curveTop, 0, curveBottom);
@@ -241,11 +238,12 @@ function renderStaticLayer(state: VisualizationState): void {
   }
 
   // ── High/low markers ──
+  const paddedPreds = padPredictions(predictions, windowStart, windowEnd);
   ctx.font = '9px monospace';
   ctx.textAlign = 'center';
-  for (const e of predictions) {
+  for (const e of paddedPreds) {
     const t = e.time.getTime();
-    if (t < dayStart || t > dayEnd) continue;
+    if (t < windowStart || t > windowEnd) continue;
     const x = timeToX(t);
     if (x < LABEL_PAD || x > width - LABEL_PAD) continue;
 
@@ -267,16 +265,18 @@ function renderStaticLayer(state: VisualizationState): void {
     ctx.fillText(timeLabel, x, y + offset);
   }
 
-  // ── Time labels (adaptive spacing) ──
+  // ── Time labels (hourly, scrolling) ──
   ctx.font = '10px monospace';
   ctx.fillStyle = textColor + '0.5)';
   ctx.textAlign = 'center';
 
+  const hourMs = 3600 * 1000;
+  // Adaptive spacing based on screen width
   const usableWidth = width - LABEL_PAD * 2;
-  const hours = usableWidth < 300 ? 6 : usableWidth < 500 ? 4 : 3;
-  const interval = hours * 3600 * 1000;
-  const firstMark = Math.ceil(dayStart / interval) * interval;
-  for (let t = firstMark; t <= dayEnd; t += interval) {
+  const hoursPerLabel = usableWidth < 300 ? 6 : usableWidth < 500 ? 4 : usableWidth < 800 ? 3 : 2;
+  const interval = hoursPerLabel * hourMs;
+  const firstMark = Math.ceil(windowStart / interval) * interval;
+  for (let t = firstMark; t <= windowEnd; t += interval) {
     const x = timeToX(t);
     if (x < LABEL_PAD || x > width - LABEL_PAD) continue;
     const d = new Date(t);
@@ -296,10 +296,11 @@ export function drawTideCurve(
 
   if (predictions.length < 2) return;
 
-  // Rebuild static layer if stale, resized, or theme changed
   const { dpr } = state;
-  const key = buildCacheKey(width, height, dpr, themeBlend, predictions.length);
   const now = Date.now();
+  // Cache key includes the current minute so the curve re-renders as time scrolls
+  const nowMinute = Math.floor(now / 60_000);
+  const key = buildCacheKey(width, height, dpr, themeBlend, predictions.length, nowMinute);
   if (!cachedCanvas || key !== cacheKey || now - cacheTime > CACHE_TTL) {
     cacheKey = key;
     renderStaticLayer(state);
@@ -307,53 +308,56 @@ export function drawTideCurve(
 
   if (!cachedCanvas || cachedPoints.length < 2) return;
 
-  // Blit cached static layer at logical size
+  // ── Vertical float: shift the whole curve up at high tide, down at low ──
+  const floatOffset = -mapRange(currentLevel, -2, 3.5, 0, height * MAX_FLOAT_FRACTION);
+
+  ctx.save();
+  ctx.translate(0, floatOffset);
+
   ctx.drawImage(cachedCanvas, 0, 0, width, height);
 
-  // ── Live: current time marker ──
+  // ── Live: current time marker (always at centre) ──
   const curveHeight = cachedCurveBottom - cachedCurveTop;
   const tw = Math.round(255 * (1 - themeBlend));
   const textColor = `rgba(${tw},${tw},${tw},`;
   const bright = (alpha: number) => levelToGlowColor(currentLevel, alpha, themeBlend);
 
   const timeToX = (t: number) =>
-    mapRange(t, cachedDayStart, cachedDayEnd, PADDING_X, width - PADDING_X);
+    mapRange(t, cachedWindowStart, cachedWindowEnd, 0, width);
   const levelToY = (l: number) =>
     cachedCurveBottom - mapRange(l, cachedMinLevel, cachedMaxLevel, 0, curveHeight);
 
   const nowX = timeToX(now);
 
-  if (nowX > PADDING_X && nowX < width - PADDING_X) {
-    ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(nowX, cachedCurveTop);
-    ctx.lineTo(nowX, cachedCurveBottom);
-    ctx.strokeStyle = textColor + '0.15)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(nowX, cachedCurveTop);
+  ctx.lineTo(nowX, cachedCurveBottom);
+  ctx.strokeStyle = textColor + '0.15)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
 
-    let curveLevel = currentLevel;
-    for (let i = 0; i < cachedPoints.length - 1; i++) {
-      if (cachedPoints[i].time <= now && cachedPoints[i + 1].time >= now) {
-        const frac = (now - cachedPoints[i].time) / (cachedPoints[i + 1].time - cachedPoints[i].time);
-        curveLevel = cachedPoints[i].level + (cachedPoints[i + 1].level - cachedPoints[i].level) * frac;
-        break;
-      }
+  let curveLevel = currentLevel;
+  for (let i = 0; i < cachedPoints.length - 1; i++) {
+    if (cachedPoints[i].time <= now && cachedPoints[i + 1].time >= now) {
+      const frac = (now - cachedPoints[i].time) / (cachedPoints[i + 1].time - cachedPoints[i].time);
+      curveLevel = cachedPoints[i].level + (cachedPoints[i + 1].level - cachedPoints[i].level) * frac;
+      break;
     }
-
-    const currentY = levelToY(curveLevel);
-    const dotGrad = ctx.createRadialGradient(nowX, currentY, 0, nowX, currentY, 18);
-    dotGrad.addColorStop(0, bright(1.0));
-    dotGrad.addColorStop(0.4, bright(0.5));
-    dotGrad.addColorStop(1, bright(0));
-    ctx.fillStyle = dotGrad;
-    ctx.fillRect(nowX - 18, currentY - 18, 36, 36);
-
-    ctx.beginPath();
-    ctx.arc(nowX, currentY, 5, 0, Math.PI * 2);
-    const dv = Math.round(255 * (1 - themeBlend));
-    ctx.fillStyle = `rgb(${dv},${dv},${dv})`;
-    ctx.fill();
-    ctx.restore();
   }
+
+  const currentY = levelToY(curveLevel);
+  const dotGrad = ctx.createRadialGradient(nowX, currentY, 0, nowX, currentY, 18);
+  dotGrad.addColorStop(0, bright(1.0));
+  dotGrad.addColorStop(0.4, bright(0.5));
+  dotGrad.addColorStop(1, bright(0));
+  ctx.fillStyle = dotGrad;
+  ctx.fillRect(nowX - 18, currentY - 18, 36, 36);
+
+  ctx.beginPath();
+  ctx.arc(nowX, currentY, 5, 0, Math.PI * 2);
+  const dv = Math.round(255 * (1 - themeBlend));
+  ctx.fillStyle = `rgb(${dv},${dv},${dv})`;
+  ctx.fill();
+
+  ctx.restore();
 }

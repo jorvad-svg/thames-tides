@@ -74,8 +74,7 @@ export function levelToGlowColor(level: number, alpha: number, blend: number): s
 }
 
 /** Returns true when overlay text should be dark (black) for readability. */
-export function needsDarkText(level: number, blend: number): boolean {
-  if (blend < 0.5) return false;
-  const [, , l] = levelToHSL(level);
-  return l >= 20;
+export function needsDarkText(_level: number, blend: number): boolean {
+  // Caustics background is always pale in light mode — always use dark text
+  return blend >= 0.5;
 }

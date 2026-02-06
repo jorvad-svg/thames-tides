@@ -1,26 +1,18 @@
 import type { VisualizationState } from '../types';
 import { levelToBackground } from './color';
-import { drawCentralGlow } from './centralGlow';
-import { updateAndDrawParticles } from './particles';
+import { drawCaustics } from './caustics';
+import { drawUndulatingMesh } from './undulatingMesh';
 import { drawTideCurve } from './tideCurve';
 
 export function renderFrame(
   ctx: CanvasRenderingContext2D,
   state: VisualizationState
 ): void {
-  const { width, height, currentLevel, themeBlend } = state;
+  // Layer 1: Caustics (fills entire background)
+  drawCaustics(ctx, state);
 
-  // Semi-transparent overlay for trail effect — clears slowly
-  ctx.fillStyle = levelToBackground(currentLevel, themeBlend);
-  ctx.globalAlpha = 0.07 + themeBlend * 0.02; // slightly faster fade in light mode
-  ctx.fillRect(0, 0, width, height);
-  ctx.globalAlpha = 1.0;
-
-  // Layer 1: Central glow (below particles)
-  drawCentralGlow(ctx, state);
-
-  // Layer 2: Particles
-  updateAndDrawParticles(ctx, state);
+  // Layer 2: Subtle undulating mesh lines over caustics
+  drawUndulatingMesh(ctx, state);
 
   // Layer 3: Tide curve along bottom
   drawTideCurve(ctx, state);

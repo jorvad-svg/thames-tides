@@ -2,7 +2,6 @@ import { useRef, useEffect, useCallback } from 'react';
 import type { TideData, VisualizationState, PointerState, Theme } from '../types';
 import { useCanvasSize } from '../hooks/useCanvasSize';
 import { renderFrame, renderInitialBackground } from '../engine/renderer';
-import { initParticles, resizeParticles } from '../engine/particles';
 
 const TRANSITION_MS = 800;
 
@@ -20,7 +19,6 @@ export function TideCanvas({ data, theme }: TideCanvasProps) {
   const { width, height, dpr } = useCanvasSize();
   const animTimeRef = useRef(0);
   const lastFrameRef = useRef(0);
-  const initializedRef = useRef(false);
   const pointerRef = useRef<PointerState>({ x: 0, y: 0, active: false });
 
   // Theme blend animation (0 = dark, 1 = light)
@@ -66,16 +64,6 @@ export function TideCanvas({ data, theme }: TideCanvasProps) {
       canvas.removeEventListener('pointerleave', handlePointerLeave);
     };
   }, [handlePointerMove, handlePointerLeave]);
-
-  // Initialize particles once
-  useEffect(() => {
-    if (!initializedRef.current) {
-      initParticles(width, height);
-      initializedRef.current = true;
-    } else {
-      resizeParticles(width, height);
-    }
-  }, [width, height]);
 
   // Set canvas size and run initial background fill
   useEffect(() => {
