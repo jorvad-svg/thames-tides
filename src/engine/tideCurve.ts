@@ -260,7 +260,7 @@ function renderStaticLayer(state: VisualizationState): void {
 
     const d = e.time;
     const timeLabel = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
-    const offset = e.type === 'high' ? -12 : 14;
+    const offset = e.type === 'high' ? -14 : 12;
     ctx.fillStyle = textColor + '0.7)';
     ctx.fillText(timeLabel, x, y + offset);
   }
@@ -281,7 +281,7 @@ function renderStaticLayer(state: VisualizationState): void {
     if (x < LABEL_PAD || x > width - LABEL_PAD) continue;
     const d = new Date(t);
     const label = `${d.getHours().toString().padStart(2, '0')}:00`;
-    ctx.fillText(label, x, curveBottom + 14);
+    ctx.fillText(label, x, curveBottom + 18);
   }
 
   cachedCanvas = oc;
