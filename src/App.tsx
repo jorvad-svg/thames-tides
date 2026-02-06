@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Theme } from './types';
+import type { Station } from './stations';
+import { STATIONS, DEFAULT_STATION } from './stations';
 import { useTideData } from './hooks/useTideData';
 import { TideCanvas } from './components/TideCanvas';
 import { Overlay } from './components/Overlay';
@@ -7,10 +9,32 @@ import { LoadingScreen } from './components/LoadingScreen';
 import { isDaytime, getSunTimes } from './utils/sun';
 import './App.css';
 
+const STORAGE_KEY = 'thames-tides-station';
+
+function loadStation(): Station {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const found = STATIONS.find((s) => s.id === stored);
+      if (found) return found;
+    }
+  } catch {}
+  return DEFAULT_STATION;
+}
+
 export default function App() {
-  const { data, loading, error } = useTideData();
+  const [station, setStation] = useState<Station>(loadStation);
+
+  const { data, loading, error } = useTideData(station);
   const [theme, setTheme] = useState<Theme>(() => (isDaytime() ? 'light' : 'dark'));
   const manualOverride = useRef(false);
+
+  // Persist station choice
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, station.id);
+    } catch {}
+  }, [station.id]);
 
   // Auto-switch at sunrise/sunset unless the user has manually toggled
   useEffect(() => {
@@ -58,14 +82,24 @@ export default function App() {
     setTheme((t) => (t === 'dark' ? 'light' : 'dark'));
   }, []);
 
+  const selectStation = useCallback((s: Station) => {
+    setStation(s);
+  }, []);
+
   if (loading || !data) {
     return <LoadingScreen error={error} />;
   }
 
   return (
     <>
-      <TideCanvas data={data} theme={theme} />
-      <Overlay data={data} theme={theme} onToggleTheme={toggleTheme} />
+      <TideCanvas data={data} theme={theme} stationId={station.id} />
+      <Overlay
+        data={data}
+        station={station}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        onSelectStation={selectStation}
+      />
     </>
   );
 }

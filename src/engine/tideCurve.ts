@@ -98,8 +98,16 @@ let cachedWindowEnd = 0;
 let cachedCurveTop = 0;
 let cachedCurveBottom = 0;
 
-function buildCacheKey(w: number, h: number, dpr: number, blend: number, predCount: number, nowMinute: number): string {
-  return `${w}|${h}|${dpr}|${Math.round(blend * 20)}|${predCount}|${nowMinute}`;
+function buildCacheKey(w: number, h: number, dpr: number, blend: number, predCount: number, nowMinute: number, stationId: string): string {
+  return `${w}|${h}|${dpr}|${Math.round(blend * 20)}|${predCount}|${nowMinute}|${stationId}`;
+}
+
+/** Flush the cached tide-curve layer (call when station changes). */
+export function invalidateTideCurveCache(): void {
+  cachedCanvas = null;
+  cacheKey = '';
+  cacheTime = 0;
+  cachedPoints = [];
 }
 
 function renderStaticLayer(state: VisualizationState): void {
@@ -296,11 +304,11 @@ export function drawTideCurve(
 
   if (predictions.length < 2) return;
 
-  const { dpr } = state;
+  const { dpr, stationId } = state;
   const now = Date.now();
   // Cache key includes the current minute so the curve re-renders as time scrolls
   const nowMinute = Math.floor(now / 60_000);
-  const key = buildCacheKey(width, height, dpr, themeBlend, predictions.length, nowMinute);
+  const key = buildCacheKey(width, height, dpr, themeBlend, predictions.length, nowMinute, stationId);
   if (!cachedCanvas || key !== cacheKey || now - cacheTime > CACHE_TTL) {
     cacheKey = key;
     renderStaticLayer(state);

@@ -82,4 +82,5 @@ export interface VisualizationState {
   pointer: PointerState;
   theme: Theme;
   themeBlend: number; // 0 = fully dark, 1 = fully light (animated)
+  stationId: string; // used to key caches per station
 }

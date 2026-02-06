@@ -31,14 +31,15 @@ html, body, #root {
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.55);
   font-weight: 300;
-  transition: color 0.8s ease;
+  transition: color 0.8s ease, opacity 0.3s ease;
+  pointer-events: auto;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
 }
 
-.overlay-station {
-  margin-top: 4px;
-  font-size: 9px;
-  letter-spacing: 0.15em;
-  opacity: 0.8;
+.overlay-title:hover {
+  opacity: 0.85;
 }
 
 .overlay-center {
@@ -92,6 +93,69 @@ html, body, #root {
   color: rgba(255, 255, 255, 0.2);
   font-weight: 300;
   transition: color 0.8s ease;
+}
+
+/* ── Station picker menu ── */
+
+.station-menu {
+  position: absolute;
+  top: 60px;
+  left: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  pointer-events: auto;
+  animation: menu-in 0.2s ease-out;
+}
+
+@keyframes menu-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.station-menu-item {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  padding: 6px 14px;
+  font-size: 10px;
+  font-weight: 300;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  text-align: left;
+  transition: color 0.15s ease, background 0.15s ease;
+  font-family: inherit;
+}
+
+.station-menu-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.station-menu-item.active {
+  color: rgba(255, 255, 255, 0.85);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Dark-text variants for station menu */
+.overlay[data-dark-text] .station-menu-item {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.06);
+  color: rgba(0, 0, 0, 0.35);
+}
+
+.overlay[data-dark-text] .station-menu-item:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: rgba(0, 0, 0, 0.65);
+}
+
+.overlay[data-dark-text] .station-menu-item.active {
+  color: rgba(0, 0, 0, 0.7);
+  border-color: rgba(0, 0, 0, 0.15);
 }
 
 /* ── Dynamic dark text (light mode + bright tide colors) ── */

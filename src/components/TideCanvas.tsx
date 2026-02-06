@@ -2,6 +2,7 @@ import { useRef, useEffect, useCallback } from 'react';
 import type { TideData, VisualizationState, PointerState, Theme } from '../types';
 import { useCanvasSize } from '../hooks/useCanvasSize';
 import { renderFrame, renderInitialBackground } from '../engine/renderer';
+import { invalidateTideCurveCache } from '../engine/tideCurve';
 
 const TRANSITION_MS = 800;
 
@@ -12,14 +13,20 @@ function easeInOut(t: number): number {
 interface TideCanvasProps {
   data: TideData;
   theme: Theme;
+  stationId: string;
 }
 
-export function TideCanvas({ data, theme }: TideCanvasProps) {
+export function TideCanvas({ data, theme, stationId }: TideCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { width, height, dpr } = useCanvasSize();
   const animTimeRef = useRef(0);
   const lastFrameRef = useRef(0);
   const pointerRef = useRef<PointerState>({ x: 0, y: 0, active: false });
+
+  // Invalidate canvas caches when station changes
+  useEffect(() => {
+    invalidateTideCurveCache();
+  }, [stationId]);
 
   // Theme blend animation (0 = dark, 1 = light)
   const blendRef = useRef(theme === 'light' ? 1 : 0);
@@ -121,6 +128,7 @@ export function TideCanvas({ data, theme }: TideCanvasProps) {
         pointer: pointerRef.current,
         theme,
         themeBlend: blendRef.current,
+        stationId,
       };
 
       renderFrame(ctx, state);

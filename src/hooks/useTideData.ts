@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { TideData, TideReading, TideState, TidalEvent } from '../types';
+import type { Station } from '../stations';
 import { fetchTodayReadings, fetchStationName, fetchTidalPredictions } from '../api';
 
 const POLL_INTERVAL = 15 * 60 * 1000; // 15 minutes
@@ -76,17 +77,34 @@ function deriveTideState(readings: TideReading[], predictions: TidalEvent[]): {
   return { state, rateOfChange: rate, currentLevel: latest.level };
 }
 
-export function useTideData(): { data: TideData | null; loading: boolean; error: string | null } {
+export function useTideData(station: Station): { data: TideData | null; loading: boolean; error: string | null } {
   const [data, setData] = useState<TideData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [stationName, setStationName] = useState('Tower Pier');
+  const [stationName, setStationName] = useState(station.name);
   const [predictions, setPredictions] = useState<TidalEvent[]>([]);
   const [predictionsReady, setPredictionsReady] = useState(false);
 
+  // Track station ID so we can discard stale responses
+  const stationRef = useRef(station.id);
+
+  // Reset state when station changes
+  useEffect(() => {
+    stationRef.current = station.id;
+    setData(null);
+    setLoading(true);
+    setError(null);
+    setStationName(station.name);
+    setPredictions([]);
+    setPredictionsReady(false);
+  }, [station.id, station.name]);
+
   const load = useCallback(async () => {
     try {
-      const readings = await fetchTodayReadings();
+      const readings = await fetchTodayReadings(station.eaStation);
+      // Discard if station changed while fetching
+      if (stationRef.current !== station.id) return;
+
       if (readings.length === 0) {
         setError('No readings available');
         return;
@@ -105,23 +123,36 @@ export function useTideData(): { data: TideData | null; loading: boolean; error:
       });
       setError(null);
     } catch (e) {
+      if (stationRef.current !== station.id) return;
       setError(e instanceof Error ? e.message : 'Failed to fetch data');
     } finally {
-      setLoading(false);
+      if (stationRef.current === station.id) {
+        setLoading(false);
+      }
     }
-  }, [stationName, predictions]);
+  }, [station.id, station.eaStation, stationName, predictions]);
 
-  // Fetch predictions once on mount (they don't change frequently)
+  // Fetch predictions when station changes
   useEffect(() => {
-    fetchTidalPredictions()
-      .then(setPredictions)
+    setPredictionsReady(false);
+    fetchTidalPredictions(station.admiraltyStation, station.cdToMaod)
+      .then((p) => {
+        if (stationRef.current === station.id) setPredictions(p);
+      })
       .catch(() => {})
-      .finally(() => setPredictionsReady(true));
-  }, []);
+      .finally(() => {
+        if (stationRef.current === station.id) setPredictionsReady(true);
+      });
+  }, [station.id, station.admiraltyStation, station.cdToMaod]);
 
+  // Fetch EA station name
   useEffect(() => {
-    fetchStationName().then(setStationName).catch(() => {});
-  }, []);
+    fetchStationName(station.eaStation)
+      .then((name) => {
+        if (stationRef.current === station.id) setStationName(name);
+      })
+      .catch(() => {});
+  }, [station.id, station.eaStation]);
 
   // Only start the polling loop once predictions have been fetched
   useEffect(() => {
