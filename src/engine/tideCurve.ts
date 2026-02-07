@@ -7,9 +7,6 @@ const LABEL_PAD = 40;
 const HALF_CYCLE = 6.2 * 3600 * 1000;
 const CACHE_TTL = 30_000;
 
-// Vertical float: curve rises/falls with tide level
-const MAX_FLOAT_FRACTION = 0.06; // max upward shift as fraction of screen height
-
 // Scrolling window: hours of past/future visible from centre
 const PAST_HOURS = 12;
 const FUTURE_HOURS = 12;
@@ -98,8 +95,8 @@ let cachedWindowEnd = 0;
 let cachedCurveTop = 0;
 let cachedCurveBottom = 0;
 
-function buildCacheKey(w: number, h: number, dpr: number, blend: number, predCount: number, nowMinute: number, stationId: string): string {
-  return `${w}|${h}|${dpr}|${Math.round(blend * 20)}|${predCount}|${nowMinute}|${stationId}`;
+function buildCacheKey(w: number, h: number, dpr: number, blend: number, predCount: number, nowMinute: number, stationId: string, offsetBucket: number): string {
+  return `${w}|${h}|${dpr}|${Math.round(blend * 20)}|${predCount}|${nowMinute}|${stationId}|${offsetBucket}`;
 }
 
 /** Flush the cached tide-curve layer (call when station changes). */
@@ -111,7 +108,7 @@ export function invalidateTideCurveCache(): void {
 }
 
 function renderStaticLayer(state: VisualizationState): void {
-  const { width, height, dpr, predictions, currentLevel, themeBlend } = state;
+  const { width, height, dpr, predictions, currentLevel, themeBlend, timeOffset } = state;
 
   const curveTop = height * (1 - CURVE_HEIGHT_FRACTION);
   const curveBottom = height - 20;
@@ -120,8 +117,10 @@ function renderStaticLayer(state: VisualizationState): void {
   const textColor = `rgba(${tw},${tw},${tw},`;
 
   const now = Date.now();
-  const windowStart = now - PAST_HOURS * 3600 * 1000;
-  const windowEnd = now + FUTURE_HOURS * 3600 * 1000;
+  // Shift the visible window by timeOffset: positive offset = looking into the future
+  const viewCentre = now + timeOffset;
+  const windowStart = viewCentre - PAST_HOURS * 3600 * 1000;
+  const windowEnd = viewCentre + FUTURE_HOURS * 3600 * 1000;
 
   const allPoints = interpolatePredictions(predictions, windowStart, windowEnd);
   if (allPoints.length < 2) {
@@ -147,7 +146,7 @@ function renderStaticLayer(state: VisualizationState): void {
   cachedCurveTop = curveTop;
   cachedCurveBottom = curveBottom;
 
-  // Now is always at screen centre
+  // viewCentre is at screen centre; now drifts off-centre when scrubbing
   const timeToX = (t: number) =>
     mapRange(t, windowStart, windowEnd, 0, width);
   const levelToY = (l: number) =>
@@ -304,11 +303,13 @@ export function drawTideCurve(
 
   if (predictions.length < 2) return;
 
-  const { dpr, stationId } = state;
+  const { dpr, stationId, timeOffset } = state;
   const now = Date.now();
   // Cache key includes the current minute so the curve re-renders as time scrolls
   const nowMinute = Math.floor(now / 60_000);
-  const key = buildCacheKey(width, height, dpr, themeBlend, predictions.length, nowMinute, stationId);
+  // Bucket offset to ~30s precision so scrubbing doesn't thrash the cache too hard
+  const offsetBucket = Math.round(timeOffset / 30_000);
+  const key = buildCacheKey(width, height, dpr, themeBlend, predictions.length, nowMinute, stationId, offsetBucket);
   if (!cachedCanvas || key !== cacheKey || now - cacheTime > CACHE_TTL) {
     cacheKey = key;
     renderStaticLayer(state);
@@ -316,11 +317,7 @@ export function drawTideCurve(
 
   if (!cachedCanvas || cachedPoints.length < 2) return;
 
-  // ── Vertical float: shift the whole curve up at high tide, down at low ──
-  const floatOffset = -mapRange(currentLevel, -2, 3.5, 0, height * MAX_FLOAT_FRACTION);
-
   ctx.save();
-  ctx.translate(0, floatOffset);
 
   ctx.drawImage(cachedCanvas, 0, 0, width, height);
 
@@ -336,36 +333,39 @@ export function drawTideCurve(
     cachedCurveBottom - mapRange(l, cachedMinLevel, cachedMaxLevel, 0, curveHeight);
 
   const nowX = timeToX(now);
+  const nowVisible = nowX >= -20 && nowX <= width + 20;
 
-  ctx.beginPath();
-  ctx.moveTo(nowX, cachedCurveTop);
-  ctx.lineTo(nowX, cachedCurveBottom);
-  ctx.strokeStyle = textColor + '0.15)';
-  ctx.lineWidth = 1;
-  ctx.stroke();
+  if (nowVisible) {
+    ctx.beginPath();
+    ctx.moveTo(nowX, cachedCurveTop);
+    ctx.lineTo(nowX, cachedCurveBottom);
+    ctx.strokeStyle = textColor + '0.15)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
 
-  let curveLevel = currentLevel;
-  for (let i = 0; i < cachedPoints.length - 1; i++) {
-    if (cachedPoints[i].time <= now && cachedPoints[i + 1].time >= now) {
-      const frac = (now - cachedPoints[i].time) / (cachedPoints[i + 1].time - cachedPoints[i].time);
-      curveLevel = cachedPoints[i].level + (cachedPoints[i + 1].level - cachedPoints[i].level) * frac;
-      break;
+    let curveLevel = currentLevel;
+    for (let i = 0; i < cachedPoints.length - 1; i++) {
+      if (cachedPoints[i].time <= now && cachedPoints[i + 1].time >= now) {
+        const frac = (now - cachedPoints[i].time) / (cachedPoints[i + 1].time - cachedPoints[i].time);
+        curveLevel = cachedPoints[i].level + (cachedPoints[i + 1].level - cachedPoints[i].level) * frac;
+        break;
+      }
     }
+
+    const currentY = levelToY(curveLevel);
+    const dotGrad = ctx.createRadialGradient(nowX, currentY, 0, nowX, currentY, 18);
+    dotGrad.addColorStop(0, bright(1.0));
+    dotGrad.addColorStop(0.4, bright(0.5));
+    dotGrad.addColorStop(1, bright(0));
+    ctx.fillStyle = dotGrad;
+    ctx.fillRect(nowX - 18, currentY - 18, 36, 36);
+
+    ctx.beginPath();
+    ctx.arc(nowX, currentY, 5, 0, Math.PI * 2);
+    const dv = Math.round(255 * (1 - themeBlend));
+    ctx.fillStyle = `rgb(${dv},${dv},${dv})`;
+    ctx.fill();
   }
-
-  const currentY = levelToY(curveLevel);
-  const dotGrad = ctx.createRadialGradient(nowX, currentY, 0, nowX, currentY, 18);
-  dotGrad.addColorStop(0, bright(1.0));
-  dotGrad.addColorStop(0.4, bright(0.5));
-  dotGrad.addColorStop(1, bright(0));
-  ctx.fillStyle = dotGrad;
-  ctx.fillRect(nowX - 18, currentY - 18, 36, 36);
-
-  ctx.beginPath();
-  ctx.arc(nowX, currentY, 5, 0, Math.PI * 2);
-  const dv = Math.round(255 * (1 - themeBlend));
-  ctx.fillStyle = `rgb(${dv},${dv},${dv})`;
-  ctx.fill();
 
   ctx.restore();
 }

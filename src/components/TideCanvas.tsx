@@ -5,6 +5,13 @@ import { renderFrame, renderInitialBackground } from '../engine/renderer';
 import { invalidateTideCurveCache } from '../engine/tideCurve';
 
 const TRANSITION_MS = 800;
+const SNAPBACK_MS = 1200;
+const SNAPBACK_DELAY_MS = 2000;
+
+// Scrolling window matches tideCurve.ts
+const PAST_HOURS = 12;
+const FUTURE_HOURS = 12;
+const TOTAL_WINDOW_MS = (PAST_HOURS + FUTURE_HOURS) * 3600 * 1000;
 
 function easeInOut(t: number): number {
   return t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
@@ -22,6 +29,14 @@ export function TideCanvas({ data, theme, stationId }: TideCanvasProps) {
   const animTimeRef = useRef(0);
   const lastFrameRef = useRef(0);
   const pointerRef = useRef<PointerState>({ x: 0, y: 0, active: false });
+
+  // Time-scrub state
+  const timeOffsetRef = useRef(0); // current offset in ms (negative = past, positive = future)
+  const isDraggingRef = useRef(false);
+  const dragStartXRef = useRef(0);
+  const dragStartOffsetRef = useRef(0);
+  const snapbackRafRef = useRef(0);
+  const snapbackTimerRef = useRef(0);
 
   // Invalidate canvas caches when station changes
   useEffect(() => {
@@ -51,26 +66,106 @@ export function TideCanvas({ data, theme, stationId }: TideCanvasProps) {
     return () => cancelAnimationFrame(rafId);
   }, [theme]);
 
-  // Pointer handlers
+  // Snap-back animation: eases timeOffset back to 0
+  const startSnapback = useCallback(() => {
+    cancelAnimationFrame(snapbackRafRef.current);
+    const startOffset = timeOffsetRef.current;
+    if (Math.abs(startOffset) < 1) { timeOffsetRef.current = 0; return; }
+
+    const startTime = performance.now();
+    const step = (now: number) => {
+      const t = Math.min((now - startTime) / SNAPBACK_MS, 1);
+      timeOffsetRef.current = startOffset * (1 - easeInOut(t));
+      if (t < 1) snapbackRafRef.current = requestAnimationFrame(step);
+      else timeOffsetRef.current = 0;
+    };
+    snapbackRafRef.current = requestAnimationFrame(step);
+  }, []);
+
+  const scheduleSnapback = useCallback(() => {
+    clearTimeout(snapbackTimerRef.current);
+    snapbackTimerRef.current = window.setTimeout(startSnapback, SNAPBACK_DELAY_MS);
+  }, [startSnapback]);
+
+  // Pointer & drag handlers
+  const handlePointerDown = useCallback((e: PointerEvent) => {
+    // Cancel any in-progress snapback
+    cancelAnimationFrame(snapbackRafRef.current);
+    clearTimeout(snapbackTimerRef.current);
+
+    isDraggingRef.current = true;
+    dragStartXRef.current = e.clientX;
+    dragStartOffsetRef.current = timeOffsetRef.current;
+    (e.currentTarget as HTMLCanvasElement).setPointerCapture(e.pointerId);
+  }, []);
+
   const handlePointerMove = useCallback((e: PointerEvent) => {
     pointerRef.current = { x: e.clientX, y: e.clientY, active: true };
-  }, []);
+
+    if (isDraggingRef.current) {
+      const dx = e.clientX - dragStartXRef.current;
+      // Convert pixels to time: dragging left = moving into future (positive offset)
+      // Full screen width = total time window
+      const pxToMs = TOTAL_WINDOW_MS / (width || 1);
+      timeOffsetRef.current = dragStartOffsetRef.current - dx * pxToMs;
+      // Clamp to ±6 hours
+      const maxOffset = 6 * 3600 * 1000;
+      timeOffsetRef.current = Math.max(-maxOffset, Math.min(maxOffset, timeOffsetRef.current));
+    }
+  }, [width]);
+
+  const handlePointerUp = useCallback(() => {
+    if (isDraggingRef.current) {
+      isDraggingRef.current = false;
+      scheduleSnapback();
+    }
+  }, [scheduleSnapback]);
 
   const handlePointerLeave = useCallback(() => {
     pointerRef.current = { ...pointerRef.current, active: false };
-  }, []);
+    if (isDraggingRef.current) {
+      isDraggingRef.current = false;
+      scheduleSnapback();
+    }
+  }, [scheduleSnapback]);
+
+  // Wheel to scrub time
+  const handleWheel = useCallback((e: WheelEvent) => {
+    e.preventDefault();
+    cancelAnimationFrame(snapbackRafRef.current);
+    clearTimeout(snapbackTimerRef.current);
+
+    const pxToMs = TOTAL_WINDOW_MS / (width || 1);
+    timeOffsetRef.current += e.deltaX * pxToMs * 0.5;
+    // Also allow vertical scroll (for mice without horizontal scroll)
+    if (Math.abs(e.deltaX) < Math.abs(e.deltaY)) {
+      timeOffsetRef.current += e.deltaY * pxToMs * 0.5;
+    }
+    const maxOffset = 6 * 3600 * 1000;
+    timeOffsetRef.current = Math.max(-maxOffset, Math.min(maxOffset, timeOffsetRef.current));
+
+    scheduleSnapback();
+  }, [width, scheduleSnapback]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    canvas.addEventListener('pointerdown', handlePointerDown);
     canvas.addEventListener('pointermove', handlePointerMove);
+    canvas.addEventListener('pointerup', handlePointerUp);
     canvas.addEventListener('pointerleave', handlePointerLeave);
+    canvas.addEventListener('wheel', handleWheel, { passive: false });
     return () => {
+      canvas.removeEventListener('pointerdown', handlePointerDown);
       canvas.removeEventListener('pointermove', handlePointerMove);
+      canvas.removeEventListener('pointerup', handlePointerUp);
       canvas.removeEventListener('pointerleave', handlePointerLeave);
+      canvas.removeEventListener('wheel', handleWheel);
+      cancelAnimationFrame(snapbackRafRef.current);
+      clearTimeout(snapbackTimerRef.current);
     };
-  }, [handlePointerMove, handlePointerLeave]);
+  }, [handlePointerDown, handlePointerMove, handlePointerUp, handlePointerLeave, handleWheel]);
 
   // Set canvas size and run initial background fill
   useEffect(() => {
@@ -129,6 +224,7 @@ export function TideCanvas({ data, theme, stationId }: TideCanvasProps) {
         theme,
         themeBlend: blendRef.current,
         stationId,
+        timeOffset: timeOffsetRef.current,
       };
 
       renderFrame(ctx, state);

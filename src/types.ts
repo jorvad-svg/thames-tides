@@ -83,4 +83,5 @@ export interface VisualizationState {
   theme: Theme;
   themeBlend: number; // 0 = fully dark, 1 = fully light (animated)
   stationId: string; // used to key caches per station
+  timeOffset: number; // ms offset for scrubbing the tide curve (0 = live)
 }
