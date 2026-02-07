@@ -21,8 +21,8 @@ const TIME_SCALE = 0.18;
 const MAX_DRIFT_SPEED = 0.8;
 
 // ── Pointer interaction ──
-const POINTER_RADIUS = 100;
-const POINTER_STRENGTH = 25; // max pixel displacement
+const POINTER_RADIUS = 180;
+const POINTER_STRENGTH = 30; // max pixel displacement at edge of obstruction
 
 // Running drift offset (accumulated each frame)
 let driftOffset = 0;
@@ -87,16 +87,20 @@ export function drawUndulatingMesh(
       const edgeFade = Math.sin(xT * Math.PI);
       let y = baseY + displacement * edgeFade;
 
-      // ── Pointer: deflect lines around cursor like an obstruction ──
+      // ── Pointer: deflect lines smoothly around cursor like water around a stone ──
       if (pointer.active) {
         const dx = x - pointer.x;
         const dy = y - pointer.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist < POINTER_RADIUS && dist > 1) {
-          const t = 1 - dist / POINTER_RADIUS;
-          const push = t * t * POINTER_STRENGTH;
-          // Push vertically away from pointer
-          y += (dy >= 0 ? 1 : -1) * push;
+          // Smooth cosine bell falloff — no sharp edges
+          const t = (1 + Math.cos((dist / POINTER_RADIUS) * Math.PI)) * 0.5;
+          // Vertical push scales smoothly with dy/dist — no discontinuity at centre
+          const nyDir = dy / dist;
+          // Blend towards full push at very small dy to avoid lines passing through
+          const minPush = t * POINTER_STRENGTH * 0.3;
+          const dirPush = nyDir * t * POINTER_STRENGTH;
+          y += Math.abs(dirPush) > minPush ? dirPush : (dy >= 0 ? minPush : -minPush);
         }
       }
 
