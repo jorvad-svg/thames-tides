@@ -8,13 +8,14 @@ const noise3D = createNoise3D();
 // ── Grid config (subtle overlay) ──
 const LINE_COUNT = 26;
 const POINTS_PER_LINE = 100;
-const VERTICAL_PADDING = 0.10;
+const VERTICAL_PADDING_TOP = 0.10;
+const VERTICAL_PADDING_BOTTOM = 0.20; // keep clear of tide curve
 
 // ── Wave physics ──
-const BASE_AMPLITUDE = 0.010;
-const NOISE_SCALE_X = 0.003;
-const NOISE_SCALE_Y = 0.004;
-const TIME_SCALE = 0.12;
+const BASE_AMPLITUDE = 0.024;
+const NOISE_SCALE_X = 0.004;
+const NOISE_SCALE_Y = 0.005;
+const TIME_SCALE = 0.18;
 
 // ── Drift (tide direction) ──
 const MAX_DRIFT_SPEED = 0.8;
@@ -42,8 +43,8 @@ export function drawUndulatingMesh(
 
   const ampScale = mapRange(Math.abs(rateOfChange), 0, 2, 0.5, 1.3) * levelIntensity;
 
-  const yTop = height * VERTICAL_PADDING;
-  const yBot = height * (1 - VERTICAL_PADDING);
+  const yTop = height * VERTICAL_PADDING_TOP;
+  const yBot = height * (1 - VERTICAL_PADDING_BOTTOM);
   const bandHeight = yBot - yTop;
 
   ctx.lineCap = 'round';
@@ -54,8 +55,8 @@ export function drawUndulatingMesh(
 
     // Subtle: centre lines slightly more visible, edges very faint
     const centreProximity = 1 - Math.abs(lineT - 0.5) * 2;
-    const lineAlpha = (0.04 + centreProximity * 0.14) * levelIntensity;
-    const lineWidth = (0.4 + centreProximity * 0.6) * (0.7 + levelIntensity * 0.5);
+    const lineAlpha = (0.07 + centreProximity * 0.20) * levelIntensity;
+    const lineWidth = (0.9 + centreProximity * 1.2) * (0.7 + levelIntensity * 0.5);
 
     const phaseOffset = i * 1.7;
 
@@ -77,7 +78,12 @@ export function drawUndulatingMesh(
         time * TIME_SCALE * 1.4 + 100
       );
 
-      const displacement = (n1 * 0.7 + n2 * 0.3) * BASE_AMPLITUDE * height * ampScale;
+      const n3 = noise3D(
+        worldX * NOISE_SCALE_X * 5,
+        baseY * NOISE_SCALE_Y * 5 + phaseOffset,
+        time * TIME_SCALE * 2.2 + 200
+      );
+      const displacement = (n1 * 0.55 + n2 * 0.30 + n3 * 0.15) * BASE_AMPLITUDE * height * ampScale;
       const edgeFade = Math.sin(xT * Math.PI);
       let y = baseY + displacement * edgeFade;
 
