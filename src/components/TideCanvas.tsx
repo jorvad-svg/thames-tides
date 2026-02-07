@@ -2,7 +2,7 @@ import { useRef, useEffect, useCallback } from 'react';
 import type { TideData, VisualizationState, PointerState, Theme } from '../types';
 import { useCanvasSize } from '../hooks/useCanvasSize';
 import { renderFrame, renderInitialBackground } from '../engine/renderer';
-import { invalidateTideCurveCache } from '../engine/tideCurve';
+import { invalidateTideCurveCache, CURVE_HEIGHT_FRACTION } from '../engine/tideCurve';
 
 const TRANSITION_MS = 800;
 const SNAPBACK_MS = 1200;
@@ -87,8 +87,11 @@ export function TideCanvas({ data, theme, stationId }: TideCanvasProps) {
     snapbackTimerRef.current = window.setTimeout(startSnapback, SNAPBACK_DELAY_MS);
   }, [startSnapback]);
 
-  // Pointer & drag handlers
+  // Pointer & drag handlers — only start drag if tap is within the tide curve area
   const handlePointerDown = useCallback((e: PointerEvent) => {
+    const curveTop = height * (1 - CURVE_HEIGHT_FRACTION);
+    if (e.clientY < curveTop) return; // tap is above the curve region
+
     // Cancel any in-progress snapback
     cancelAnimationFrame(snapbackRafRef.current);
     clearTimeout(snapbackTimerRef.current);
@@ -97,7 +100,7 @@ export function TideCanvas({ data, theme, stationId }: TideCanvasProps) {
     dragStartXRef.current = e.clientX;
     dragStartOffsetRef.current = timeOffsetRef.current;
     (e.currentTarget as HTMLCanvasElement).setPointerCapture(e.pointerId);
-  }, []);
+  }, [height]);
 
   const handlePointerMove = useCallback((e: PointerEvent) => {
     pointerRef.current = { x: e.clientX, y: e.clientY, active: true };

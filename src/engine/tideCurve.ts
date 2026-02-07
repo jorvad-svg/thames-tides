@@ -2,7 +2,7 @@ import type { VisualizationState, TidalEvent } from '../types';
 import { mapRange } from '../utils/math';
 import { levelToGlowColor } from './color';
 
-const CURVE_HEIGHT_FRACTION = 0.15;
+export const CURVE_HEIGHT_FRACTION = 0.15;
 const LABEL_PAD = 40;
 const HALF_CYCLE = 6.2 * 3600 * 1000;
 const CACHE_TTL = 30_000;
@@ -111,7 +111,7 @@ function renderStaticLayer(state: VisualizationState): void {
   const { width, height, dpr, predictions, currentLevel, themeBlend, timeOffset } = state;
 
   const curveTop = height * (1 - CURVE_HEIGHT_FRACTION);
-  const curveBottom = height - 20;
+  const curveBottom = height - 40;
   const curveHeight = curveBottom - curveTop;
   const tw = Math.round(255 * (1 - themeBlend));
   const textColor = `rgba(${tw},${tw},${tw},`;
@@ -288,7 +288,7 @@ function renderStaticLayer(state: VisualizationState): void {
     if (x < LABEL_PAD || x > width - LABEL_PAD) continue;
     const d = new Date(t);
     const label = `${d.getHours().toString().padStart(2, '0')}:00`;
-    ctx.fillText(label, x, curveBottom + 18);
+    ctx.fillText(label, x, curveBottom + 28);
   }
 
   cachedCanvas = oc;

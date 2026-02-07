@@ -20,9 +20,6 @@ const TIME_B = 0.09;
 // ── Drift (tide direction) ──
 const MAX_DRIFT = 1.2; // pixels per frame at full rate-of-change
 
-// ── Pointer interaction ──
-const POINTER_RADIUS = 120;
-
 // Accumulated drift
 let driftX = 0;
 
@@ -42,7 +39,7 @@ export function drawCaustics(
   ctx: CanvasRenderingContext2D,
   state: VisualizationState
 ): void {
-  const { width, height, currentLevel, tideState, rateOfChange, time, pointer, themeBlend } = state;
+  const { width, height, currentLevel, tideState, rateOfChange, time, themeBlend } = state;
 
   // ── Drift accumulation ──
   // Falling/low slack = downstream = right (+1), rising/high slack = upstream = left (-1)
@@ -94,22 +91,7 @@ export function drawCaustics(
       caustic = Math.max(0, (caustic - 0.25) / 0.75);
       caustic = caustic * caustic; // square for sharp bright ridges
 
-      caustic *= intensity;
-
-      // ── Pointer: brighten/ripple near cursor ──
-      if (pointer.active) {
-        const px = gx * CELL - pointer.x;
-        const py = worldY - pointer.y;
-        const dist = Math.sqrt(px * px + py * py);
-        if (dist < POINTER_RADIUS) {
-          const prox = 1 - dist / POINTER_RADIUS;
-          // Add a ring ripple
-          const ring = Math.sin(dist * 0.15 - time * 4) * 0.5 + 0.5;
-          caustic += prox * prox * ring * 0.5;
-        }
-      }
-
-      caustic = Math.min(caustic, 1);
+      caustic = Math.min(caustic * intensity, 1);
 
       // ── Map to colour ──
       // In dark mode: caustic brightens from dark base
